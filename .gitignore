@@ -1,0 +1,6 @@
+
+*.o
+*.mod
+*.a
+*.kvs
+Test/SmokeRing/SmokeRing
