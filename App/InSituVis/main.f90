@@ -30,6 +30,7 @@ program main_m
 !  use job_m        ! ジョブ管理
 !  use vis_m
   use smoke_ring_m
+  use InSituVis_m
 
   use, intrinsic :: iso_fortran_env
   implicit none    ! 暗黙の型宣言無効化。必須
@@ -44,6 +45,10 @@ program main_m
   character(100) :: arg_job
 
   integer ::unit
+
+
+  !!! IN_SITU_VIS: adaptor
+  type( InSituVis ) :: insitu_vis
 
 
   call params__read
@@ -109,7 +114,11 @@ program main_m
     ! 音速によって決まるCFL条件が厳しくなる（つまりdtが小さくなる）
     ! ここでは初期状態における流体の状態に基づいてdtが決まる
 
-  call vis%initialize(job_count)
+  !!! IN_SITU_VIS: instance & initialize
+  insitu_vis = InSituVis()
+  call insitu_vis % initialize()
+
+  !  call vis%initialize(job_count)
 
   do while(job__karte%state=="fine")
     ! このシミュレーションのメインループである。ジョブカルテが
@@ -139,7 +148,7 @@ program main_m
       ! 断面データのディスクへの書き出し
 
     !可視化部分
-    call vis%visualize(nloop,fluid,visualization_count)
+!    call vis%visualize(nloop,fluid,visualization_count)
     visualization_count = visualization_count +1
 
     if (nloop>=params__get_integer('Total_nloop'))  &
@@ -149,10 +158,10 @@ program main_m
 
   end do
 
+  !!! IN_SITU_VIS: finalize
+  call insitu_vis % finalize()
 
-    
-
-  call vis%finalize
+  !  call vis%finalize
   call job__finalize(nloop)
       ! ジョブの後始末。実際にはメーセージを標準出力に書くだけ。
 end program main_m
