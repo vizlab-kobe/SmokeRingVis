@@ -2,7 +2,10 @@
 #include <InSituVis/Lib/Viewpoint.h>
 #include <kvs/StructuredVolumeObject>
 #include <kvs/PolygonRenderer>
+#include <kvs/RayCastingRenderer>
 #include <kvs/Isosurface>
+#include <kvs/OrthoSlice>
+#include <kvs/Bounds>
 
 
 namespace Params
@@ -21,6 +24,50 @@ const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 const auto Viewpoint = InSituVis::Viewpoint{ { ViewDir, ViewPos } }; // viewpoint
 
 // Visualization pipeline
+auto OrthoSlice = [&] ( Screen& screen, const Object& object )
+{
+    Volume volume; volume.shallowCopy( Volume::DownCast( object ) );
+
+    // Setup a transfer function.
+    const auto min_value = volume.minValue();
+    const auto max_value = volume.maxValue();
+    auto t = kvs::TransferFunction( kvs::ColorMap::BrewerSpectral() );
+    t.setRange( min_value, max_value );
+
+    // Create new slice objects.
+    auto p0 = ( volume.minObjectCoord().y() + volume.maxObjectCoord().y() ) * 0.5f;
+    auto a0 = kvs::OrthoSlice::YAxis;
+    auto* o0 = new kvs::OrthoSlice( &volume, p0, a0, t );
+    o0->setName( "Slice0" );
+
+    auto p1 = ( volume.minObjectCoord().z() + volume.maxObjectCoord().z() ) * 0.5f;
+    auto a1 = kvs::OrthoSlice::ZAxis;
+    auto* o1 = new kvs::OrthoSlice( &volume, p1, a1, t );
+    o1->setName( "Slice1" );
+
+    // Register object and renderer to screen
+    kvs::Light::SetModelTwoSide( true );
+    if ( screen.scene()->hasObject( "Slice0" ) )
+    {
+        // Update the objects.
+        screen.scene()->replaceObject( "Slice0", o0 );
+        screen.scene()->replaceObject( "Slice1", o1 );
+    }
+    else
+    {
+        // Bounding box.
+        screen.registerObject( o0, new kvs::Bounds() );
+
+        // Register the objects with renderer.
+        auto* r0 = new kvs::glsl::PolygonRenderer();
+        auto* r1 = new kvs::glsl::PolygonRenderer();
+        r0->setTwoSideLightingEnabled( true );
+        r1->setTwoSideLightingEnabled( true );
+        screen.registerObject( o0, r0 );
+        screen.registerObject( o1, r1 );
+    }
+};
+
 auto Isosurface = [&] ( Screen& screen, const Object& object )
 {
     Volume volume; volume.shallowCopy( Volume::DownCast( object ) );
@@ -32,27 +79,62 @@ auto Isosurface = [&] ( Screen& screen, const Object& object )
     t.setRange( min_value, max_value );
 
     // Create new object
-    auto n = kvs::Isosurface::PolygonNormal;
+    auto n = kvs::Isosurface::VertexNormal;
     auto d = true;
     auto i = kvs::Math::Mix( min_value, max_value, 0.5 );
     auto* o = new kvs::Isosurface( &volume, i, n, d, t );
-    o->setName( "Object" );
+    o->setName( "Isosurface" );
 
     // Register object and renderer to screen
     kvs::Light::SetModelTwoSide( true );
-    if ( screen.scene()->hasObject( "Object" ) )
+    if ( screen.scene()->hasObject( "Isosurface" ) )
     {
         // Update the objects.
-        screen.scene()->replaceObject( "Object", o );
+        screen.scene()->replaceObject( "Isosurface", o );
     }
     else
     {
+        // Bounding box.
+        screen.registerObject( o, new kvs::Bounds() );
+
         // Register the objects with renderer.
         auto* r = new kvs::glsl::PolygonRenderer();
         r->setTwoSideLightingEnabled( true );
         screen.registerObject( o, r );
     }
 };
+
+auto VolumeRendering = [&] ( Screen& screen, const Object& object )
+{
+    auto* o = new Volume();
+    o->shallowCopy( Volume::DownCast( object ) );
+    o->setName( "Volume" );
+
+    // Register object and renderer to screen
+    if ( screen.scene()->hasObject( "Volume" ) )
+    {
+        // Update the objects.
+        screen.scene()->replaceObject( "Volume", o );
+    }
+    else
+    {
+        // Bounding box.
+        screen.registerObject( o, new kvs::Bounds() );
+
+        // Setup a transfer function.
+        const auto min_value = o->minValue();
+        const auto max_value = o->maxValue();
+        auto t = kvs::TransferFunction( kvs::ColorMap::BrewerSpectral() );
+        t.setRange( min_value, max_value );
+
+        // Register the objects with renderer.
+        auto* r = new kvs::glsl::RayCastingRenderer();
+        r->setTransferFunction( t );
+        screen.registerObject( o, r );
+    }
+};
+
+
 
 } // end of namespace Params
 
@@ -62,7 +144,9 @@ extern "C" InSituVis::Adaptor* InSituVis_new()
     auto vis = new InSituVis::Adaptor();
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
+    //vis->setPipeline( Params::OrthoSlice );
     vis->setPipeline( Params::Isosurface );
+    //vis->setPipeline( Params::VolumeRendering );
     return vis;
 }
 
@@ -81,20 +165,20 @@ extern "C" void InSituVis_finalize( InSituVis::Adaptor* self )
     self->finalize();
 }
 
-extern "C" void InSituVis_put( InSituVis::Adaptor* self, float* values, int nvalues, int dimx, int dimy, int dimz )
+extern "C" void InSituVis_put( InSituVis::Adaptor* self, double* values, int nvalues, int dimx, int dimy, int dimz )
 {
     Params::Volume volume;
     volume.setVeclen( 1 );
-    volume.setResolution( { dimx, dimy, dimz } );
-    volume.setValues( kvs::ValueArray<float>{ values, size_t( nvalues ) } );
+    volume.setResolution( kvs::Vec3ui{ dimx, dimy, dimz } );
+    volume.setValues( kvs::ValueArray<double>{ values, size_t( nvalues ) } );
     volume.setGridTypeToUniform();
     volume.updateMinMaxValues();
+    volume.updateMinMaxCoords();
 
     self->put( volume );
 }
 
-extern "C" void InSituVis_exec( InSituVis::Adaptor* self, float time_value, int time_index )
+extern "C" void InSituVis_exec( InSituVis::Adaptor* self, double time_value, long time_index )
 {
-    self->exec( { time_value, size_t( time_index ) } );
+    self->exec( { float( time_value ), size_t( time_index ) } );
 }
-
