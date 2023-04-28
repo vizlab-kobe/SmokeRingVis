@@ -3,7 +3,7 @@
 import sys
 import os
 
-LIB_NAME = "smoke_ring_m"
+LIB_NAME = "smoke_ring_m.mpi"
 
 #=============================================================================
 #  Executes kvsmake command.
@@ -26,7 +26,7 @@ def KVSMake( option ):
         sys.exit()
 
     command = ''
-    command += "kvsmake -g " + LIB_NAME + s
+    command += "kvsmake -g " + LIB_NAME + " -use_mpi" + s
     command += make_option
     os.system( command )
 
