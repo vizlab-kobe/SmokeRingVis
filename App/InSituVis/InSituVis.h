@@ -4,9 +4,15 @@
 #endif
 #include <InSituVis/Lib/Adaptor.h>
 
-extern "C" InSituVis::Adaptor* InSituVis_new();
-extern "C" void InSituVis_delete( InSituVis::Adaptor* self );
-extern "C" void InSituVis_initialize( InSituVis::Adaptor* self );
-extern "C" void InSituVis_finalize( InSituVis::Adaptor* self );
-extern "C" void InSituVis_put( InSituVis::Adaptor* self, double* values, int nvalues, int dimx, int dimy, int dimz );
-extern "C" void InSituVis_exec( InSituVis::Adaptor* self, double time_value, long time_index );
+
+extern "C"
+{
+
+InSituVis::Adaptor* InSituVis_new();
+void InSituVis_delete( InSituVis::Adaptor* self );
+void InSituVis_initialize( InSituVis::Adaptor* self );
+void InSituVis_finalize( InSituVis::Adaptor* self );
+void InSituVis_put( InSituVis::Adaptor* self, double* values, int nvalues, int dimx, int dimy, int dimz );
+void InSituVis_exec( InSituVis::Adaptor* self, double time_value, long time_index );
+
+} // end of extern "C"

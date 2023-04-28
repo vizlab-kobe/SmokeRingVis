@@ -134,12 +134,13 @@ auto VolumeRendering = [&] ( Screen& screen, const Object& object )
     }
 };
 
-
-
 } // end of namespace Params
 
 
-extern "C" InSituVis::Adaptor* InSituVis_new()
+extern "C"
+{
+
+InSituVis::Adaptor* InSituVis_new()
 {
     auto vis = new InSituVis::Adaptor();
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
@@ -150,22 +151,22 @@ extern "C" InSituVis::Adaptor* InSituVis_new()
     return vis;
 }
 
-extern "C" void InSituVis_delete( InSituVis::Adaptor* self )
+void InSituVis_delete( InSituVis::Adaptor* self )
 {
     if ( self ) delete self;
 }
 
-extern "C" void InSituVis_initialize( InSituVis::Adaptor* self )
+void InSituVis_initialize( InSituVis::Adaptor* self )
 {
     self->initialize();
 }
 
-extern "C" void InSituVis_finalize( InSituVis::Adaptor* self )
+void InSituVis_finalize( InSituVis::Adaptor* self )
 {
     self->finalize();
 }
 
-extern "C" void InSituVis_put( InSituVis::Adaptor* self, double* values, int nvalues, int dimx, int dimy, int dimz )
+void InSituVis_put( InSituVis::Adaptor* self, double* values, int nvalues, int dimx, int dimy, int dimz )
 {
     Params::Volume volume;
     volume.setVeclen( 1 );
@@ -178,7 +179,9 @@ extern "C" void InSituVis_put( InSituVis::Adaptor* self, double* values, int nva
     self->put( volume );
 }
 
-extern "C" void InSituVis_exec( InSituVis::Adaptor* self, double time_value, long time_index )
+void InSituVis_exec( InSituVis::Adaptor* self, double time_value, long time_index )
 {
     self->exec( { float( time_value ), size_t( time_index ) } );
 }
+
+} // end of extern "C"

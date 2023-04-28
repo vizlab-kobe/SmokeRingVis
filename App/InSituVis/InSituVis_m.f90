@@ -34,7 +34,7 @@ module InSituVis_m
           bind( C, name="InSituVis_put" )
        import
        type( C_ptr ),    value :: this
-       real( C_double )         :: values( nvalues )
+       real( C_double )        :: values( nvalues )
        integer( C_int ), value :: nvalues
        integer( C_int ), value :: dimx
        integer( C_int ), value :: dimy
