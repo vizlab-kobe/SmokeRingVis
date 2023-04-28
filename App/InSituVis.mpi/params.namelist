@@ -1,0 +1,5 @@
+&simulation      Total_nloop = 3000 /
+&visualization   Slicedata_nskip  = 100 /
+&output_file     Slicedata_file = './_data_slice' /
+&fluid_property  Viscosity = 3.0e-2, Kappa = 3.0e-2 /
+&flags           Debug = .false. /
