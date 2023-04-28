@@ -4,3 +4,4 @@
 *.a
 *.kvs
 Test/SmokeRing/SmokeRing
+.DS_Store
