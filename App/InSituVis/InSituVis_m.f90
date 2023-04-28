@@ -34,7 +34,7 @@ module InSituVis_m
           bind( C, name="InSituVis_put" )
        import
        type( C_ptr ),    value :: this
-       real( C_float )         :: values( nvalues )
+       real( C_double )         :: values( nvalues )
        integer( C_int ), value :: nvalues
        integer( C_int ), value :: dimx
        integer( C_int ), value :: dimy
@@ -44,9 +44,9 @@ module InSituVis_m
      subroutine C_InSituVis_exec( this, time_value, time_index )&
           bind( C, name="InSituVis_exec" )
        import
-       type( C_ptr ),    value :: this
-       real( C_float ),  value :: time_value
-       integer( C_int ), value :: time_index
+       type( C_ptr ),     value :: this
+       real( C_double ),  value :: time_value
+       integer( C_long ), value :: time_index
      end subroutine C_InSituVis_exec
   end interface
 
@@ -107,7 +107,7 @@ contains
   subroutine InSituVis_put( this, values, nvalues, dimx, dimy, dimz )
     implicit none
     class( InSituVis ), intent( in ) :: this
-    real( C_float ),    intent( in ) :: values(nvalues)
+    real( C_double ),   intent( in ) :: values(nvalues)
     integer( C_int ),   intent( in ) :: nvalues
     integer( C_int ),   intent( in ) :: dimx
     integer( C_int ),   intent( in ) :: dimy
@@ -118,8 +118,8 @@ contains
   subroutine InSituVis_exec( this, time_value, time_index )
     implicit none
     class( InSituVis ), intent( in ) :: this
-    real( C_float ),    intent( in ) :: time_value
-    integer( C_int ),   intent( in ) :: time_index
+    real( C_double ),   intent( in ) :: time_value
+    integer( C_long ),  intent( in ) :: time_index
     call C_InSituVis_exec( this % ptr, time_value, time_index )
   end subroutine InSituVis_exec
 
