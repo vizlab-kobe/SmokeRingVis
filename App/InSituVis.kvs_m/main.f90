@@ -50,10 +50,16 @@ program main_m
   ! {
   type( kvs_OffScreen )              :: screen   !! rendering screen
   type( kvs_StructuredVolumeObject ) :: volume   !! structured volume object
-  type( kvs_RayCastingRenderer )     :: renderer !! volume renderer
   type( kvs_Bounds )                 :: bounds   !! bounding box module
   type( kvs_ColorImage )             :: image    !! rendering image
   character( len = 100 )             :: filename !! output filename
+  ! }
+
+  ! ENSTROPHY
+  ! {
+!  type(field__vector3d_t)       :: vel       !! 速度場（3D）
+!  type(field__vector3d_t)       :: vor       !! vorticity、渦度
+!  real(DR), dimension(NX,NY,NZ) :: enstrophy !! 渦度の2乗
   ! }
 
   ! IN_SITU_VIS: Screen settings
@@ -156,6 +162,13 @@ program main_m
     ! call slicedata__write(nloop,time,fluid)
       ! 断面データのディスクへの書き出し
 
+    ! ENSTROPHY
+    ! {
+!    call solver__get_subfield(fluid,vel)
+!    vor = operator_curl(vel)
+!    enstrophy = operator_dot_product(vor,vor)
+    ! }
+
     ! IN_SITU_VIS: Create volume
     ! {
     volume = kvs_StructuredVolumeObject()
@@ -164,6 +177,7 @@ program main_m
     call volume % setVeclen( 1 )
     call volume % setResolution( kvs_Vec3i( NX, NY, NZ ) )
     call volume % setValues( fluid % pressure, NX * NY * NZ )
+!    call volume % setValues( enstrophy, NX * NY * NZ )
     call volume % updateMinMaxValues()
     call volume % updateMinMaxCoords()
     ! }
@@ -175,7 +189,7 @@ program main_m
     else
        bounds = kvs_Bounds()
        call screen % registerObject( volume % get(), bounds % get() )
-       call screen % registerObject( volume % get(), renderer % get() )
+       call screen % registerObject( volume % get() )
     end if
     call screen % draw()
     ! }
