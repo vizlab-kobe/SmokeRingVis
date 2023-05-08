@@ -46,14 +46,14 @@ program main_m
 
   integer ::unit
 
-  ! IN_SITU_VIS: Parameters
+  ! IN_SITU_VIS: Visualization setup
   ! {
-  type( kvs_OffScreen ) :: screen
-  type( kvs_ColorImage ) :: image
-  type( kvs_StructuredVolumeObject ) :: volume
-  type( kvs_Isosurface ) :: isosurface
-  type( kvs_Bounds ) :: bounds
-  character :: filename*100
+  type( kvs_OffScreen )              :: screen   !! rendering screen
+  type( kvs_StructuredVolumeObject ) :: volume   !! structured volume object
+  type( kvs_RayCastingRenderer )     :: renderer !! volume renderer
+  type( kvs_Bounds )                 :: bounds   !! bounding box module
+  type( kvs_ColorImage )             :: image    !! rendering image
+  character( len = 100 )             :: filename !! output filename
   ! }
 
   ! IN_SITU_VIS: Screen settings
@@ -163,7 +163,7 @@ program main_m
     call volume % setGridTypeToUniform()
     call volume % setVeclen( 1 )
     call volume % setResolution( kvs_Vec3i( NX, NY, NZ ) )
-    call volume % setValues( fluid%pressure, NX * NY * NZ )
+    call volume % setValues( fluid % pressure, NX * NY * NZ )
     call volume % updateMinMaxValues()
     call volume % updateMinMaxCoords()
     ! }
@@ -175,7 +175,7 @@ program main_m
     else
        bounds = kvs_Bounds()
        call screen % registerObject( volume % get(), bounds % get() )
-       call screen % registerObject( volume % get() )
+       call screen % registerObject( volume % get(), renderer % get() )
     end if
     call screen % draw()
     ! }
@@ -185,6 +185,7 @@ program main_m
     write ( filename, '("output_", i6.6, ".bmp")' ) nloop
     image = screen % capture()
     call image % write( trim( filename ) )
+    call image % delete()
     ! }
 
     !可視化部分

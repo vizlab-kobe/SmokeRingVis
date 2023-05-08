@@ -1,4 +1,4 @@
-#include "InSituVis.h"
+#include <InSituVis/Lib/Adaptor_mpi.h>
 #include <InSituVis/Lib/Viewpoint.h>
 #include <kvs/StructuredVolumeObject>
 #include <kvs/PolygonRenderer>
@@ -24,7 +24,7 @@ const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 const auto Viewpoint = InSituVis::Viewpoint{ { ViewDir, ViewPos } }; // viewpoint
 
 // Visualization pipeline
-auto OrthoSlice = [&] ( Screen& screen, const Object& object )
+auto OrthoSlice = [] ( Screen& screen, const Object& object )
 {
     Volume volume; volume.shallowCopy( Volume::DownCast( object ) );
 
@@ -68,7 +68,7 @@ auto OrthoSlice = [&] ( Screen& screen, const Object& object )
     }
 };
 
-auto Isosurface = [&] ( Screen& screen, const Object& object )
+auto Isosurface = [] ( Screen& screen, const Object& object )
 {
     Volume volume; volume.shallowCopy( Volume::DownCast( object ) );
 
@@ -104,7 +104,7 @@ auto Isosurface = [&] ( Screen& screen, const Object& object )
     }
 };
 
-auto VolumeRendering = [&] ( Screen& screen, const Object& object )
+auto VolumeRendering = [] ( Screen& screen, const Object& object )
 {
     auto* o = new Volume();
     o->shallowCopy( Volume::DownCast( object ) );

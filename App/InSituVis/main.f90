@@ -46,16 +46,10 @@ program main_m
 
   integer ::unit
 
-
-  ! IN_SITU_VIS: Adaptor setup
+  ! IN_SITU_VIS: Instance
   ! {
   type( InSituVis ) :: insitu_vis
-  integer :: dimx, dimy, dimz
-  integer :: nvalues
-  dimx = NX
-  dimy = NY
-  dimz = NZ
-  nvalues = dimx * dimy * dimz
+  insitu_vis = InSituVis()
   ! }
 
   call params__read
@@ -121,10 +115,9 @@ program main_m
     ! 音速によって決まるCFL条件が厳しくなる（つまりdtが小さくなる）
     ! ここでは初期状態における流体の状態に基づいてdtが決まる
 
-  ! IN_SITU_VIS: instance & initialize
+  ! IN_SITU_VIS: Initialize
   ! {
-  insitu_vis = InSituVis()
-  call insitu_vis%initialize()
+  call insitu_vis % initialize()
   ! }
 
   !  call vis%initialize(job_count)
@@ -156,10 +149,10 @@ program main_m
     ! call slicedata__write(nloop,time,fluid)
       ! 断面データのディスクへの書き出し
 
-    ! IN_SITU_VIS: put & exec
+    ! IN_SITU_VIS: Put & Execute
     ! {
-    call insitu_vis%put( fluid%pressure, nvalues, dimx, dimy, dimz )
-    call insitu_vis%exec( time, nloop )
+    call insitu_vis % put( fluid % pressure, NX, NY, NZ )
+    call insitu_vis % exec( time, nloop )
     ! }
 
     !可視化部分
@@ -173,9 +166,9 @@ program main_m
 
   end do
 
-  ! IN_SITU_VIS: finalize
+  ! IN_SITU_VIS: Finalize
   ! {
-  call insitu_vis%finalize()
+  call insitu_vis % finalize()
   ! }
 
   !  call vis%finalize

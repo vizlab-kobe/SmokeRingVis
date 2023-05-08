@@ -43,15 +43,16 @@ program main_m
   type(rank__peripheral_xyz_t) :: peripheral
   type(grid__div_range_xyz_t) :: grid_div_range
 
-  ! IN_SITU_VIS: Adaptor setup
+  ! IN_SITU_VIS: Instance
   ! {
   type( InSituVis ) :: insitu_vis
-  integer :: dimx, dimy, dimz
-  integer :: nvalues
-  dimx = NX
-  dimy = NY
-  dimz = NZ
-  nvalues = dimx * dimy * dimz
+  insitu_vis = InSituVis()
+!  integer :: dimx, dimy, dimz
+!  integer :: nvalues
+!  dimx = NX
+!  dimy = NY
+!  dimz = NZ
+!  nvalues = dimx * dimy * dimz
   ! }
 
   call mpi_init(ierror)
@@ -74,10 +75,9 @@ program main_m
   call solver__diagnosis(myrank,nloop,time,fluid,grid_div_range)
   dt = solver__set_time_step(nloop,fluid)
 
-  ! IN_SITU_VIS: instance & initialize
+  ! IN_SITU_VIS: Initialize
   ! {
-  insitu_vis = InSituVis()
-  call insitu_vis%initialize()
+  call insitu_vis % initialize()
   ! }
 
   do while(job__karte%state=="fine")
@@ -88,10 +88,10 @@ program main_m
     call solver__diagnosis(myrank,nloop,time,fluid,grid_div_range)
     call slicedata__write(nloop,time,fluid,myrank,grid_div_range,peripheral,status)
 
-    ! IN_SITU_VIS: put & exec
+    ! IN_SITU_VIS: Put & Execute
     ! {
-    call insitu_vis%put( fluid%pressure, nvalues, dimx, dimy, dimz )
-    call insitu_vis%exec( time, nloop )
+    call insitu_vis % put( fluid % pressure, NX, NY, NZ )
+    call insitu_vis % exec( time, nloop )
     ! }
 
     if (nloop>=params__get_integer('Total_nloop'))  &
@@ -100,9 +100,9 @@ program main_m
   call cpu_time(t1) 
   print *, "elappsed time", t1 - t0
 
-  ! IN_SITU_VIS: finalize
+  ! IN_SITU_VIS: Finalize
   ! {
-  call insitu_vis%finalize()
+  call insitu_vis % finalize()
   ! }
 
   call mpi_finalize(ierror)

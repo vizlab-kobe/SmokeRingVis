@@ -1,4 +1,7 @@
-#include "InSituVis.h"
+#if defined( KVS_SUPPORT_MPI )
+#undef KVS_SUPPORT_MPI
+#endif
+#include <InSituVis/Lib/Adaptor.h>
 #include <InSituVis/Lib/Viewpoint.h>
 #include <kvs/StructuredVolumeObject>
 #include <kvs/PolygonRenderer>
@@ -24,7 +27,7 @@ const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 const auto Viewpoint = InSituVis::Viewpoint{ { ViewDir, ViewPos } }; // viewpoint
 
 // Visualization pipeline
-auto OrthoSlice = [&] ( Screen& screen, const Object& object )
+auto OrthoSlice = [] ( Screen& screen, const Object& object )
 {
     Volume volume; volume.shallowCopy( Volume::DownCast( object ) );
 
@@ -68,7 +71,7 @@ auto OrthoSlice = [&] ( Screen& screen, const Object& object )
     }
 };
 
-auto Isosurface = [&] ( Screen& screen, const Object& object )
+auto Isosurface = [] ( Screen& screen, const Object& object )
 {
     Volume volume; volume.shallowCopy( Volume::DownCast( object ) );
 
@@ -104,7 +107,7 @@ auto Isosurface = [&] ( Screen& screen, const Object& object )
     }
 };
 
-auto VolumeRendering = [&] ( Screen& screen, const Object& object )
+auto VolumeRendering = [] ( Screen& screen, const Object& object )
 {
     auto* o = new Volume();
     o->shallowCopy( Volume::DownCast( object ) );
@@ -146,8 +149,8 @@ InSituVis::Adaptor* InSituVis_new()
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
     //vis->setPipeline( Params::OrthoSlice );
-    vis->setPipeline( Params::Isosurface );
-    //vis->setPipeline( Params::VolumeRendering );
+    //vis->setPipeline( Params::Isosurface );
+    vis->setPipeline( Params::VolumeRendering );
     return vis;
 }
 
@@ -166,12 +169,12 @@ void InSituVis_finalize( InSituVis::Adaptor* self )
     self->finalize();
 }
 
-void InSituVis_put( InSituVis::Adaptor* self, double* values, int nvalues, int dimx, int dimy, int dimz )
+void InSituVis_put( InSituVis::Adaptor* self, double* values, int dimx, int dimy, int dimz )
 {
     Params::Volume volume;
     volume.setVeclen( 1 );
-    volume.setResolution( kvs::Vec3ui{ dimx, dimy, dimz } );
-    volume.setValues( kvs::ValueArray<double>{ values, size_t( nvalues ) } );
+    volume.setResolution( kvs::Vec3ui( dimx, dimy, dimz ) );
+    volume.setValues( kvs::ValueArray<double>{ values, size_t( dimx * dimy * dimz ) } );
     volume.setGridTypeToUniform();
     volume.updateMinMaxValues();
     volume.updateMinMaxCoords();
