@@ -34,7 +34,8 @@ auto OrthoSlice = [] ( Screen& screen, const Object& object )
     // Setup a transfer function.
     const auto min_value = volume.minValue();
     const auto max_value = volume.maxValue();
-    auto t = kvs::TransferFunction( kvs::ColorMap::BrewerSpectral() );
+//    auto t = kvs::TransferFunction( kvs::ColorMap::BrewerSpectral() );
+    auto t = kvs::TransferFunction( kvs::ColorMap::CoolWarm() );
     t.setRange( min_value, max_value );
 
     // Create new slice objects.
@@ -76,36 +77,57 @@ auto Isosurface = [] ( Screen& screen, const Object& object )
     Volume volume; volume.shallowCopy( Volume::DownCast( object ) );
 
     // Setup a transfer function.
-//    const auto min_value = volume.minValue();
-//    const auto max_value = volume.maxValue();
-    auto t = kvs::TransferFunction( kvs::ColorMap::BrewerSpectral() );
-//    t.setRange( min_value, max_value );
-    t.setRange( 0.0, 35000.0 ); // for enstrophy
+    const auto min_value = volume.minValue();
+    const auto max_value = volume.maxValue();
+//    auto t = kvs::TransferFunction( kvs::ColorMap::BrewerSpectral() );
+    auto t = kvs::TransferFunction( kvs::ColorMap::CoolWarm() );
+    t.setRange( min_value, max_value );
 
     // Create new object
     auto n = kvs::Isosurface::VertexNormal;
     auto d = true;
-//    auto i = kvs::Math::Mix( min_value, max_value, 0.5 );
-    auto i = 100.0f; // for enstrophy
-    auto* o = new kvs::Isosurface( &volume, i, n, d, t );
-    o->setName( "Isosurface" );
+
+    auto i0 = kvs::Math::Mix( min_value, max_value, 0.1 );
+    auto i1 = kvs::Math::Mix( min_value, max_value, 0.6 );
+    auto i2 = kvs::Math::Mix( min_value, max_value, 0.7 );
+    auto i3 = kvs::Math::Mix( min_value, max_value, 0.9 );
+    auto* o0 = new kvs::Isosurface( &volume, i0, n, d, t );
+    auto* o1 = new kvs::Isosurface( &volume, i1, n, d, t );
+    auto* o2 = new kvs::Isosurface( &volume, i2, n, d, t );
+    auto* o3 = new kvs::Isosurface( &volume, i3, n, d, t );
+    o0->setName( "Isosurface0" );
+    o1->setName( "Isosurface1" );
+    o2->setName( "Isosurface2" );
+    o3->setName( "Isosurface3" );
 
     // Register object and renderer to screen
     kvs::Light::SetModelTwoSide( true );
-    if ( screen.scene()->hasObject( "Isosurface" ) )
+    if ( screen.scene()->hasObject( "Isosurface0" ) )
     {
         // Update the objects.
-        screen.scene()->replaceObject( "Isosurface", o );
+        screen.scene()->replaceObject( "Isosurface0", o0 );
+        screen.scene()->replaceObject( "Isosurface1", o1 );
+        screen.scene()->replaceObject( "Isosurface2", o2 );
+        screen.scene()->replaceObject( "Isosurface3", o3 );
     }
     else
     {
         // Bounding box.
-        screen.registerObject( o, new kvs::Bounds() );
+        screen.registerObject( o0, new kvs::Bounds() );
 
         // Register the objects with renderer.
-        auto* r = new kvs::glsl::PolygonRenderer();
-        r->setTwoSideLightingEnabled( true );
-        screen.registerObject( o, r );
+        auto* r0 = new kvs::glsl::PolygonRenderer();
+        auto* r1 = new kvs::glsl::PolygonRenderer();
+        auto* r2 = new kvs::glsl::PolygonRenderer();
+        auto* r3 = new kvs::glsl::PolygonRenderer();
+        r0->setTwoSideLightingEnabled( true );
+        r1->setTwoSideLightingEnabled( true );
+        r2->setTwoSideLightingEnabled( true );
+        r3->setTwoSideLightingEnabled( true );
+        screen.registerObject( o0, r0 );
+        screen.registerObject( o1, r1 );
+        screen.registerObject( o2, r2 );
+        screen.registerObject( o3, r3 );
     }
 };
 
@@ -129,12 +151,25 @@ auto VolumeRendering = [] ( Screen& screen, const Object& object )
         // Setup a transfer function.
         const auto min_value = o->minValue();
         const auto max_value = o->maxValue();
-        auto t = kvs::TransferFunction( kvs::ColorMap::BrewerSpectral() );
-        t.setRange( min_value, max_value );
+
+//        auto cmap = kvs::ColorMap::BrewerSpectral();
+        auto cmap = kvs::ColorMap::CoolWarm();
+
+        auto omap = kvs::OpacityMap();
+        omap.addPoint(   0.0, 0.0 );
+        omap.addPoint(   1.0, 0.2 );
+        omap.addPoint( 250.0, 0.5 );
+        omap.addPoint( 253.0, 0.1 );
+        omap.addPoint( 255.0, 0.2 );
+        omap.create();
+
+        auto tfunc = kvs::TransferFunction( cmap, omap );
+        tfunc.setRange( min_value, max_value );
 
         // Register the objects with renderer.
-        auto* r = new kvs::glsl::RayCastingRenderer();
-        r->setTransferFunction( t );
+//        auto* r = new kvs::glsl::RayCastingRenderer();
+        auto* r = new kvs::RayCastingRenderer();
+        r->setTransferFunction( tfunc );
         screen.registerObject( o, r );
     }
 };
@@ -151,8 +186,8 @@ InSituVis::Adaptor* InSituVis_new()
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
     vis->setAnalysisInterval( Params::AnalysisInterval );
-    //vis->setPipeline( Params::OrthoSlice );
-    vis->setPipeline( Params::Isosurface );
+    vis->setPipeline( Params::OrthoSlice );
+    //vis->setPipeline( Params::Isosurface );
     //vis->setPipeline( Params::VolumeRendering );
     return vis;
 }
