@@ -21,7 +21,7 @@ using Screen = InSituVis::Adaptor::Screen;
 
 // Setting parameters
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
-const auto AnalysisInterval = 5; // l: analysis (visuaization) time interval
+const auto AnalysisInterval = 100; // l: analysis (visuaization) time interval
 const auto ViewPos = kvs::Vec3{ 7, 5, 6 }; // viewpoint position
 const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 const auto Viewpoint = InSituVis::Viewpoint{ { ViewDir, ViewPos } }; // viewpoint
@@ -76,15 +76,17 @@ auto Isosurface = [] ( Screen& screen, const Object& object )
     Volume volume; volume.shallowCopy( Volume::DownCast( object ) );
 
     // Setup a transfer function.
-    const auto min_value = volume.minValue();
-    const auto max_value = volume.maxValue();
+//    const auto min_value = volume.minValue();
+//    const auto max_value = volume.maxValue();
     auto t = kvs::TransferFunction( kvs::ColorMap::BrewerSpectral() );
-    t.setRange( min_value, max_value );
+//    t.setRange( min_value, max_value );
+    t.setRange( 0.0, 35000.0 ); // for enstrophy
 
     // Create new object
     auto n = kvs::Isosurface::VertexNormal;
     auto d = true;
-    auto i = kvs::Math::Mix( min_value, max_value, 0.5 );
+//    auto i = kvs::Math::Mix( min_value, max_value, 0.5 );
+    auto i = 100.0f; // for enstrophy
     auto* o = new kvs::Isosurface( &volume, i, n, d, t );
     o->setName( "Isosurface" );
 
@@ -148,9 +150,10 @@ InSituVis::Adaptor* InSituVis_new()
     auto vis = new InSituVis::Adaptor();
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
+    vis->setAnalysisInterval( Params::AnalysisInterval );
     //vis->setPipeline( Params::OrthoSlice );
-    //vis->setPipeline( Params::Isosurface );
-    vis->setPipeline( Params::VolumeRendering );
+    vis->setPipeline( Params::Isosurface );
+    //vis->setPipeline( Params::VolumeRendering );
     return vis;
 }
 

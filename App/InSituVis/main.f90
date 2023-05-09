@@ -151,7 +151,8 @@ program main_m
 
     ! IN_SITU_VIS: Put & Execute
     ! {
-    call insitu_vis % put( fluid % pressure, NX, NY, NZ )
+    !    call insitu_vis % put( fluid % pressure, NX, NY, NZ )
+    call insitu_vis % put( vis % get_enstrophy( fluid ), NX, NY, NZ )
     call insitu_vis % exec( time, nloop )
     ! }
 
