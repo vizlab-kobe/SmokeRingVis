@@ -12,6 +12,7 @@ module vis_m
     procedure, nopass :: initialize => vis__initialize
     procedure, nopass :: finalize => vis__finalize
     procedure, nopass :: visualize => vis__visualize
+    procedure, nopass :: get_enstrophy => vis__get_enstrophy
   end type vis_t
 
   type(vis_t) :: vis
@@ -43,6 +44,15 @@ contains
       
   end subroutine vis__visualize
 
+  function vis__get_enstrophy( fluid )
+    type(field__fluid_t) ,intent(in) :: fluid
+    type(field__vector3d_t) :: vel !! 速度場（3D）
+    type(field__vector3d_t)       :: vor       ! vorticity、渦度
+    real(DR), dimension(NX,NY,NZ) :: vis__get_enstrophy ! 渦度の2乗
+    call solver__get_subfield(fluid,vel)
+    vor = operator_curl(vel)
+    vis__get_enstrophy = operator_dot_product(vor,vor)
+  end function vis__get_enstrophy
 
   subroutine vis__finalize
 

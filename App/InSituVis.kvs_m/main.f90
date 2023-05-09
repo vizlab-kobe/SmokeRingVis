@@ -55,13 +55,6 @@ program main_m
   character( len = 100 )             :: filename !! output filename
   ! }
 
-  ! ENSTROPHY
-  ! {
-!  type(field__vector3d_t)       :: vel       !! 速度場（3D）
-!  type(field__vector3d_t)       :: vor       !! vorticity、渦度
-!  real(DR), dimension(NX,NY,NZ) :: enstrophy !! 渦度の2乗
-  ! }
-
   ! IN_SITU_VIS: Screen settings
   ! {
   screen = kvs_OffScreen()
@@ -133,7 +126,7 @@ program main_m
     ! 音速によって決まるCFL条件が厳しくなる（つまりdtが小さくなる）
     ! ここでは初期状態における流体の状態に基づいてdtが決まる
 
-  !  call vis%initialize(job_count)
+!  call vis%initialize(job_count)
 
   do while(job__karte%state=="fine")
     ! このシミュレーションのメインループである。ジョブカルテが
@@ -162,13 +155,6 @@ program main_m
     ! call slicedata__write(nloop,time,fluid)
       ! 断面データのディスクへの書き出し
 
-    ! ENSTROPHY
-    ! {
-!    call solver__get_subfield(fluid,vel)
-!    vor = operator_curl(vel)
-!    enstrophy = operator_dot_product(vor,vor)
-    ! }
-
     ! IN_SITU_VIS: Create volume
     ! {
     volume = kvs_StructuredVolumeObject()
@@ -176,8 +162,10 @@ program main_m
     call volume % setGridTypeToUniform()
     call volume % setVeclen( 1 )
     call volume % setResolution( kvs_Vec3i( NX, NY, NZ ) )
-    call volume % setValues( fluid % pressure, NX * NY * NZ )
-!    call volume % setValues( enstrophy, NX * NY * NZ )
+!    call volume % setValues( fluid % pressure, NX * NY * NZ )
+!    call volume % setValues( fluid % density, NX * NY * NZ )
+!    call volume % setValues( fluid % flux % x, NX * NY * NZ )
+    call volume % setValues( vis % get_enstrophy( fluid ), NX * NY * NZ )
     call volume % updateMinMaxValues()
     call volume % updateMinMaxCoords()
     ! }
@@ -216,4 +204,5 @@ program main_m
   !  call vis%finalize
   call job__finalize(nloop)
       ! ジョブの後始末。実際にはメーセージを標準出力に書くだけ。
+
 end program main_m
