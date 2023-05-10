@@ -49,7 +49,7 @@ program main_m
   ! IN_SITU_VIS: Instance
   ! {
   type( InSituVis ) :: insitu_vis
-  insitu_vis = InSituVis()
+  insitu_vis = InSituVis( VolumeRendering ) ! OrthoSlice, Isosurface, or VolumeRendering
   ! }
 
   call params__read
