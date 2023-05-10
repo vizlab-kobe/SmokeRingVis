@@ -46,13 +46,7 @@ program main_m
   ! IN_SITU_VIS: Instance
   ! {
   type( InSituVis ) :: insitu_vis
-  insitu_vis = InSituVis()
-!  integer :: dimx, dimy, dimz
-!  integer :: nvalues
-!  dimx = NX
-!  dimy = NY
-!  dimz = NZ
-!  nvalues = dimx * dimy * dimz
+  insitu_vis = InSituVis( VolumeRendering ) ! OrthoSlice, Isosurface, or VolumeRendering
   ! }
 
   call mpi_init(ierror)

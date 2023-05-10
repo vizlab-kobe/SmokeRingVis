@@ -21,13 +21,22 @@ module InSituVis_m
      procedure InSituVis_new
   end interface InSituVis
 
+  ! Visualization method
+  public :: OrthoSlice, Isosurface, VolumeRendering
+  enum, bind( C )
+     enumerator :: OrthoSlice = 1
+     enumerator :: Isosurface = 2
+     enumerator :: VolumeRendering = 3
+  end enum
+
   ! C interface
   private
   interface
-     function C_InSituVis_new()&
+     function C_InSituVis_new( method )&
           bind( C, name="InSituVis_new" )
        import
-       type( C_ptr ) :: C_InSituVis_new
+       type( C_ptr )           :: C_InSituVis_new
+       integer( C_int ), value :: method
      end function C_InSituVis_new
 
      subroutine C_InSituVis_delete( this )&
@@ -69,10 +78,11 @@ module InSituVis_m
 
 contains
 
-  function InSituVis_new()
+  function InSituVis_new( method )
     implicit none
     type( InSituVis ) :: InSituVis_new
-    InSituVis_new % ptr = C_InSituVis_new()
+    integer( C_int ), intent( in ) :: method
+    InSituVis_new % ptr = C_InSituVis_new( method )
   end function InSituVis_new
 
   subroutine InSituVis_destroy( this )
