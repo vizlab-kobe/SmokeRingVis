@@ -157,9 +157,6 @@ inline Pipeline VolumeRendering( const kvs::ColorMap& cmap )
             screen.registerObject( o, new kvs::Bounds() );
 
             // Setup a transfer function.
-            const auto min_value = o->minValue();
-            const auto max_value = o->maxValue();
-
             auto omap = kvs::OpacityMap();
             omap.addPoint(   0.0, 0.0 );
             omap.addPoint(   1.0, 0.2 );
@@ -168,6 +165,8 @@ inline Pipeline VolumeRendering( const kvs::ColorMap& cmap )
             omap.addPoint( 255.0, 0.2 );
             omap.create();
 
+            const auto min_value = o->minValue();
+            const auto max_value = o->maxValue();
             auto tfunc = kvs::TransferFunction( cmap, omap );
             tfunc.setRange( min_value, max_value );
 

@@ -51,6 +51,10 @@ program main_m
   type( kvs_OffScreen )              :: screen   !! rendering screen
   type( kvs_StructuredVolumeObject ) :: volume   !! structured volume object
   type( kvs_Bounds )                 :: bounds   !! bounding box module
+  type( kvs_ColorMap )               :: cmap     !! color map
+  type( kvs_OpacityMap )             :: omap     !! opacity map
+  type( kvs_TransferFunction )       :: tfunc    !! transfer function
+  type( kvs_RayCastingRenderer )     :: renderer !! ray casting renderer
   type( kvs_ColorImage )             :: image    !! rendering image
   character( len = 100 )             :: filename !! output filename
   ! }
@@ -162,9 +166,7 @@ program main_m
     call volume % setGridTypeToUniform()
     call volume % setVeclen( 1 )
     call volume % setResolution( kvs_Vec3i( NX, NY, NZ ) )
-!    call volume % setValues( fluid % pressure, NX * NY * NZ )
-!    call volume % setValues( fluid % density, NX * NY * NZ )
-!    call volume % setValues( fluid % flux % x, NX * NY * NZ )
+    !call volume % setValues( fluid % pressure, NX * NY * NZ )
     call volume % setValues( vis % get_enstrophy( fluid ), NX * NY * NZ )
     call volume % updateMinMaxValues()
     call volume % updateMinMaxCoords()
@@ -177,7 +179,24 @@ program main_m
     else
        bounds = kvs_Bounds()
        call screen % registerObject( volume % get(), bounds % get() )
-       call screen % registerObject( volume % get() )
+
+       cmap = kvs_ColorMap_CoolWarm()
+       omap = kvs_OpacityMap()
+       call omap % addPoint(   0.0, 0.0 )
+       call omap % addPoint(   1.0, 0.2 )
+       call omap % addPoint( 250.0, 0.5 )
+       call omap % addPoint( 253.0, 0.1 )
+       call omap % addPoint( 255.0, 0.2 )
+       call omap % create()
+
+       tfunc = kvs_TransferFunction()
+       call tfunc % setColorMap( cmap )
+       call tfunc % setOpacityMap( omap )
+       call tfunc % setRange( volume % minValue(), volume % maxValue() )
+
+       renderer = kvs_RayCastingRenderer( glsl = .false. )
+       call renderer % setTransferFunction( tfunc )
+       call screen % registerObject( volume % get(), renderer % get() )
     end if
     call screen % draw()
     ! }
