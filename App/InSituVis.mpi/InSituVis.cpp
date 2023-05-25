@@ -228,7 +228,7 @@ void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz 
     self->put( volume );
 }
 
-void InSituVis_exec( Adaptor* self, double time_value, long time_index )
+void InSituVis_exec( Adaptor* self, double time_value, int time_index )
 {
     self->exec( { float( time_value ), size_t( time_index ) } );
 }

@@ -1,304 +1,194 @@
-!-------------------------------------------------------------------
-! class-hpc-smoke-ring: A simple sample field solver.
-!
-!    by Akira Kageyama, Kobe University, Japan.
-!       email: sgks@mac.com
-!
-!    This software is released under the MIT License.
-!
-!-------------------------------------------------------------------
-!    src/field.f90
-!-------------------------------------------------------------------
+!!>
+!   author: Akira Kageyama
+!   date: 2023.05.05
+! 
+!   流体場データ構造体
+! 
+!   @note 配列演算を多用している。つまり一行で書かれている部分も
+!         実際は3重do loopで書かれような大量の演算をしているところが
+!         多い。このコードをOpenMP化する時には、そのような部分を
+!         3重do loopに展開して書き直す必要がある。
+!!<
 
 module field_m
-  use constants_m
-  use grid_m
-  use mpi
-  use rank_m
-
-  implicit none
-
-  public
-  private :: &!<< assignments >>!&
-             assignment_real_to_fluid,           &
-             assignment_real_to_vector
-  public  :: &!<< operators >>!&
-             operator_cross_product,             &
-             operator_curl,                      &
-             operator_div,                       &
-             operator_dot_product,               &
-             operator_energyintegral,            &
-             operator_fluid_add,                 &
-             operator_fluid_times_real,          &
-             operator_laplacian_scalar,          &
-             operator_laplacian_vector,          &
-             operator_real_times_fluid,          &
-             operator_real_times_vector,         &
-             operator_scalar_times_vector,       &
-             operator_scalarintegral,            &
-             operator_vector_add,                &
-             operator_vector_divby_scalar,       &
-             operator_vector_times_real,         &
-             operator_vector_times_scalar
-  private :: &!<< routines >>!&
-             boundary_condition_fluid,           &
-             boundary_condition_scalar,          &
-             boundary_condition_vector
+  use constants_m  ! 定数定義
+  use grid_m       ! 格子点
+  use mpiut_m      ! MPI通信ユーティリティ
+  use parallel_m   ! 並列化
+  implicit none    ! 暗黙の型宣言無効化。必須
+  private
+  public :: operator( .curl. ),            &
+            operator( .div. ),             &
+            operator( .scalarintegral. ),  &
+            operator( .laplacian. ),       &
+            operator( .x. ),               &
+            operator( .dot. ),             &
+            operator( + ),                 &
+            operator( * ),                 &
+            operator( / )
+  public :: assignment( = )
+  public :: field__boundary_condition
 
   interface field__boundary_condition
-    module procedure boundary_condition_fluid,  &
-                     boundary_condition_scalar, &
+    !! 境界条件呼び出しルーチンの多重定義
+    !! 境界条件を設定する変数の種類によって
+    !! 実際に使用するルーチンが違うが、
+    !! 呼び出し側では統一した名前でcallする。
+    !! コンパイラは引数の型で使用するルーチンを
+    !! 判断する。
+    module procedure boundary_condition_scalar,  &
                      boundary_condition_vector
-  end interface
+  end interface 
 
-  !--- << Types >> ---!
+  !!>
+!  type field__scalar_t
+!     !この構造体は efpp_alias.list で以下のようにマクロ定義されている
+!     !=> "real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1)"
+!  end type field__scalar_t
+  !!<
 
-  type field__vector3d_t
-    real(DR), dimension(NX,NY,NZ) :: x
-    real(DR), dimension(NX,NY,NZ) :: y
-    real(DR), dimension(NX,NY,NZ) :: z
-  end type field__vector3d_t
+  type, public :: field__vector_t
+    !! 3次元ベクトル場構造体
+    !! ここではコンパイル時に配列のサイズが
+    !! 既に決まっているとしているが、そうでない
+    !! 場合、つまり実行時に配列サイズを確定
+    !! したい場合にはallocatableな配列を使えば良い。
+    !!
+    !! コード全体にサイズ（行数）がそれほど
+    !! 多くない今のような場合は、配列サイズ
+    !! （=シミュレーションの格子点数）を
+    !! 変更する度にコンパイルしてもたいした
+    !! 時間はかからないのでこのように
+    !! 決め打ちにしても問題ない。
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1) :: x  !! x成分
+      ! 倍精度浮動小数点数（double real, DR）の
+      ! 3次元配列、という意味。念の為。
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1) :: y  !! y成分
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1) :: z  !! z成分
+  end type field__vector_t
 
-  type field__fluid_t
-    real(DR), dimension(NX,NY,NZ) :: pressure  ! fluid pressure(scaler)
-    real(DR), dimension(NX,NY,NZ) :: density   ! mass density(scaler)
-    type(field__vector3d_t)       :: flux      ! mass flux(vector)
-  end type field__fluid_t
 
   !--- << Operators >> ---!
 
-! interface operator(.curl.)
-!    module procedure operator_curl
-! end interface
-!
-! interface operator(.div.)
-!    module procedure operator_div
-! end interface
-!
-! interface operator(.energyintegral.)
-!    module procedure operator_energyintegral
-! end interface
-!
-! interface operator(.scalarintegral.)
-!    module procedure operator_scalarintegral
-! end interface
-!
-! interface operator(.laplacian.)
-!    module procedure operator_laplacian_scalar
-!    module procedure operator_laplacian_vector
-! end interface
-!
-! interface operator(.x.)
-!    module procedure operator_cross_product
-! end interface
-!
-! interface operator(.dot.)
-!    module procedure operator_dot_product
-! end interface
-!
-! interface operator(+)
-!    module procedure operator_fluid_add
-!    module procedure operator_vector_add
-! end interface
-!
-! interface operator(/)
-!    module procedure operator_vector_divby_scalar
-! end interface
-!
-! interface operator(*)
-!    module procedure operator_integer_times_fluid
-!    module procedure operator_fluid_times_integer
-!    module procedure operator_fluid_times_real
-!    module procedure operator_real_times_fluid
-!    module procedure operator_real_times_vector
-!    module procedure operator_scalar_times_vector
-!    module procedure operator_vector_times_real
-!    module procedure operator_vector_times_scalar
-! end interface
-!
-! interface assignment(=)
-!    module procedure assignment_real_to_fluid
-!    module procedure assignment_real_to_vector
-! end interface
+  interface operator( .curl. )
+     !! ベクトル解析のcurl演算子
+     module procedure operator_curl
+  end interface
+ 
+  interface operator( .div. )
+     !! ベクトル解析のdivergence演算子
+     module procedure operator_div
+  end interface
+ 
+  interface operator( .scalarintegral. )
+     !! 任意のスカラー場の体積積分をする演算子
+     module procedure operator_scalarintegral
+  end interface
+ 
+  interface operator( .laplacian. )
+     !! ラプラシアン演算子
+     !! スカラー場とベクトル場用の2つの多重定義
+     module procedure operator_laplacian_scalar
+     module procedure operator_laplacian_vector
+  end interface
+ 
+  interface operator( .x. )
+     !! ベクトル解析の外積演算子
+     module procedure operator_cross_product
+  end interface
+ 
+  interface operator( .dot. )
+     !! ベクトル解析の内積演算子
+     module procedure operator_dot_product
+  end interface
+ 
+  interface operator( + )
+     !! 構造体全要素の足し算を+記号で書けるように定義
+     module procedure operator_vector_add
+  end interface
+
+ interface operator( / )
+    !! ベクトル場の3成分をあるスカラー場で割り算する
+    !! 操作は何度か出てくる（例えば質量フラックスfluxから
+    !! 速度場velocity_vectorを求めるときに
+    !! velocity_vector = flux / mass_density
+    !! という割り算が必要である）この計算を
+    !! スラッシュ記号一つで書けるように定義
+    module procedure operator_vector_divby_scalar
+ end interface
+
+ interface operator( * )
+    !! 各種構造体に掛け算記号が使えるように定義
+    module procedure operator_real_times_vector
+    module procedure operator_scalar_times_vector
+    module procedure operator_vector_times_real
+    module procedure operator_vector_times_scalar
+ end interface
+
+ interface assignment( = )
+    !! 各種構造体に代入記号が使えるように定義
+    module procedure assignment_real_to_vector
+ end interface
 
 
 contains
 
 
-  subroutine assignment_real_to_fluid(fluid,real)
-    type(field__fluid_t), intent(out) :: fluid
-    real(DR),             intent(in)  :: real
-
-    fluid%pressure(:,:,:) = real
-    fluid%density(:,:,:)  = real
-    fluid%flux%x(:,:,:)   = real
-    fluid%flux%y(:,:,:)   = real
-    fluid%flux%z(:,:,:)   = real
-  end subroutine assignment_real_to_fluid
-
-
-  subroutine assignment_real_to_vector(vector,real)
-    type(field__vector3d_t), intent(out) :: vector
-    real(DR),                intent(in)  :: real
+  subroutine assignment_real_to_vector( vector, real )
+    !! ベクトル場に実数を代入。
+    !! 初期条件で0にセットするときに使う。
+    type(field__vector_t), intent(out) :: vector !! ベクトル場
+    real(DR), intent(in)  :: real   !! 代入する実数
 
     vector%x(:,:,:) = real
     vector%y(:,:,:) = real
     vector%z(:,:,:) = real
   end subroutine assignment_real_to_vector
-  
-  subroutine boundary_condition_fluid(fluid, grid_div_range, peripheral, status)
-    type(field__fluid_t), intent(inout) :: fluid
-    type(grid__div_range_xyz_t), intent(in) :: grid_div_range
-    type(rank__peripheral_xyz_t), intent(in) :: peripheral
-
-    integer(SI) :: status(MPI_STATUS_SIZE)
-    integer(SI) :: ierror
-
-    call boundary_condition_scalar(fluid%pressure, grid_div_range, peripheral, status)
-    call boundary_condition_scalar(fluid%density, grid_div_range, peripheral, status)
-    call boundary_condition_vector(fluid%flux, grid_div_range, peripheral, status)
-  end subroutine boundary_condition_fluid
 
 
-  subroutine boundary_condition_scalar(scalar, grid_div_range, peripheral, status)
-    real(DR), dimension(NX,NY,NZ), intent(inout) :: scalar
-    type(grid__div_range_xyz_t), intent(in) :: grid_div_range
-    type(rank__peripheral_xyz_t), intent(in) :: peripheral
+  subroutine boundary_condition_scalar( scalar )
+    !! スカラー場の境界条件設定
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1), intent(inout) :: scalar !! スカラー場
 
-    integer(SI) :: status(MPI_STATUS_SIZE)
-    integer(SI) :: ierror
-    
-        
-    call mpi_sendrecv(scalar(grid_div_range%range_x%end_idx-1,:,:), NY*NZ,MPI_REAL8, peripheral%x%upper, 100,  &
-                        scalar(grid_div_range%range_x%start_idx,:,:), NY*NZ,MPI_REAL8, peripheral%x%lower, 100, &
-                        MPI_COMM_WORLD, status, ierror)
+    !! 周期境界条件の設定
+    call mpiut__exchange( Parallel%comm,            &
+                          Parallel%periodic_pair,   &
+                          scalar )
+    call mpiut__barrier( Parallel%comm )
+    !! プロセス間通信で領域境界データを交換
+    call mpiut__exchange( Parallel%comm,            &
+                          Parallel%rank%next,       &
+                          scalar )
+    call mpiut__barrier( Parallel%comm )
 
-    call mpi_sendrecv(scalar(grid_div_range%range_x%start_idx+1,:,:), NY*NZ, MPI_REAL8, peripheral%x%lower, 100,  &
-                        scalar(grid_div_range%range_x%end_idx,:,:), NY*NZ, MPI_REAL8, peripheral%x%upper, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-   
-    call mpi_sendrecv(scalar(:,grid_div_range%range_y%end_idx-1,:), NX*NZ,MPI_REAL8, peripheral%y%upper, 100,  &
-                        scalar(:,grid_div_range%range_y%start_idx,:), NX*NZ,MPI_REAL8, peripheral%y%lower, 100, &
-                        MPI_COMM_WORLD, status, ierror)
- 
-    call mpi_sendrecv(scalar(:,grid_div_range%range_y%start_idx+1,:), NX*NZ, MPI_REAL8, peripheral%y%lower, 100,  &
-                        scalar(:,grid_div_range%range_y%end_idx,:), NX*NZ, MPI_REAL8, peripheral%y%upper, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-  
-    
-    call mpi_sendrecv(scalar(:,:,grid_div_range%range_z%end_idx-1), NX*NY,MPI_REAL8, peripheral%z%upper, 100,  &
-                        scalar(:,:,grid_div_range%range_z%start_idx), NX*NY,MPI_REAL8, peripheral%z%lower, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-
-    call mpi_sendrecv(scalar(:,:,grid_div_range%range_z%start_idx+1), NX*NY, MPI_REAL8, peripheral%z%lower, 100,  &
-                        scalar(:,:,grid_div_range%range_z%end_idx), NX*NY, MPI_REAL8, peripheral%z%upper, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-    
-
-    !scalar( 1,:,:) = scalar(NX-1,:,:)
-    !scalar(NX,:,:) = scalar(   2,:,:)
-
-    !scalar(:, 1,:) = scalar(:,NY-1,:)
-    !scalar(:,NY,:) = scalar(:,   2,:)
-
-    !scalar(:,:, 1) = scalar(:,:,NZ-1)
-    !scalar(:,:,NZ) = scalar(:,:,   2)
   end subroutine boundary_condition_scalar
 
 
-  subroutine boundary_condition_vector(vec, grid_div_range, peripheral, status)
-    type(field__vector3d_t), intent(inout) :: vec
-    type(rank__peripheral_xyz_t), intent(in) :: peripheral
-    type(grid__div_range_xyz_t), intent(in) :: grid_div_range
+  subroutine boundary_condition_vector( vector )
+    !! ベクトル場の境界条件設定
+    type(field__vector_t), intent(inout) :: vector !! ベクトル場
 
-    integer(SI) :: status(MPI_STATUS_SIZE)
-    integer(SI) :: ierror
-    integer(SI) :: i,j
-
-    ! xz plane
-    call mpi_sendrecv(vec%x(:,grid_div_range%range_y%end_idx-1,:), NX*NZ, MPI_REAL8, peripheral%y%upper, 100,  &
-                        vec%x(:,grid_div_range%range_y%start_idx,:) ,NX*NZ, MPI_REAL8, peripheral%y%lower, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-
-    call mpi_sendrecv(vec%y(:,grid_div_range%range_y%end_idx-1,:), NX*NZ, MPI_REAL8, peripheral%y%upper, 100,  &
-                        vec%y(:,grid_div_range%range_y%start_idx,:) ,NX*NZ, MPI_REAL8, peripheral%y%lower, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-    
-    call mpi_sendrecv(vec%z(:,grid_div_range%range_y%end_idx-1,:), NX*NZ, MPI_REAL8, peripheral%y%upper, 100,  &
-                        vec%z(:,grid_div_range%range_y%start_idx,:) ,NX*NZ, MPI_REAL8, peripheral%y%lower, 100, &
-                        MPI_COMM_WORLD, status, ierror)  
-    
-    call mpi_sendrecv(vec%x(:,grid_div_range%range_y%start_idx+1,:), NX*NZ, MPI_REAL8, peripheral%y%lower, 100,  &
-                        vec%x(:,grid_div_range%range_y%end_idx,:) ,NX*NZ, MPI_REAL8, peripheral%y%upper, 100, &
-                        MPI_COMM_WORLD, status, ierror)
- 
-    call mpi_sendrecv(vec%y(:,grid_div_range%range_y%start_idx+1,:), NX*NZ, MPI_REAL8, peripheral%y%lower, 100,  &
-                        vec%y(:,grid_div_range%range_y%end_idx,:) ,NX*NZ, MPI_REAL8, peripheral%y%upper, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-    
-    call mpi_sendrecv(vec%z(:,grid_div_range%range_y%start_idx+1,:), NX*NZ, MPI_REAL8, peripheral%y%lower, 100,  &
-                        vec%z(:,grid_div_range%range_y%end_idx,:) ,NX*NZ, MPI_REAL8, peripheral%y%upper, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-   
-     
-    !xy plane
-    call mpi_sendrecv(vec%x(:,:,grid_div_range%range_z%end_idx-1), NX*NY, MPI_REAL8, peripheral%z%upper, 100,  &
-                        vec%x(:,:,grid_div_range%range_z%start_idx) ,NX*NY, MPI_REAL8, peripheral%z%lower, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-    
-    call mpi_sendrecv(vec%y(:,:,grid_div_range%range_z%end_idx-1), NX*NY, MPI_REAL8, peripheral%z%upper, 100,  &
-                        vec%y(:,:,grid_div_range%range_z%start_idx) ,NX*NY, MPI_REAL8, peripheral%z%lower, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-    
-    call mpi_sendrecv(vec%z(:,:,grid_div_range%range_z%end_idx-1), NX*NY, MPI_REAL8, peripheral%z%upper, 100,  &
-                        vec%z(:,:,grid_div_range%range_z%start_idx) ,NX*NY, MPI_REAL8, peripheral%z%lower, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-    
-    call mpi_sendrecv(vec%x(:,:,grid_div_range%range_z%start_idx+1), NX*NY, MPI_REAL8, peripheral%z%lower, 100,  &
-                        vec%x(:,:,grid_div_range%range_z%end_idx) ,NX*NY, MPI_REAL8, peripheral%z%upper, 100, &
-                        MPI_COMM_WORLD, status, ierror)
- 
-    call mpi_sendrecv(vec%y(:,:,grid_div_range%range_z%start_idx+1), NX*NY, MPI_REAL8, peripheral%z%lower, 100,  &
-                        vec%y(:,:,grid_div_range%range_z%end_idx) ,NX*NY, MPI_REAL8, peripheral%z%upper, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-    
-    call mpi_sendrecv(vec%z(:,:,grid_div_range%range_z%start_idx+1), NX*NY, MPI_REAL8, peripheral%z%lower, 100,  &
-                        vec%z(:,:,grid_div_range%range_z%end_idx) ,NX*NY, MPI_REAL8, peripheral%z%upper, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-     
-
-    !yz plane
-    call mpi_sendrecv(vec%x(grid_div_range%range_x%end_idx-1,:,:), NY*NZ, MPI_REAL8, peripheral%x%upper, 100,  &
-                        vec%x(grid_div_range%range_x%start_idx,:,:) ,NY*NZ, MPI_REAL8, peripheral%x%lower, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-    
-    call mpi_sendrecv(vec%y(grid_div_range%range_x%end_idx-1,:,:), NY*NZ, MPI_REAL8, peripheral%x%upper, 150,  &
-                        vec%y(grid_div_range%range_x%start_idx,:,:) ,NY*NZ, MPI_REAL8, peripheral%x%lower, 150, &
-                        MPI_COMM_WORLD, status, ierror)  
-    
-    call mpi_sendrecv(vec%z(grid_div_range%range_x%end_idx-1,:,:), NY*NZ, MPI_REAL8, peripheral%x%upper, 100,  &
-                        vec%z(grid_div_range%range_x%start_idx,:,:) ,NY*NZ, MPI_REAL8, peripheral%x%lower, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-    
-    call mpi_sendrecv(vec%x(grid_div_range%range_x%start_idx+1,:,:), NY*NZ, MPI_REAL8, peripheral%x%lower, 150,  &
-                        vec%x(grid_div_range%range_x%end_idx,:,:) ,NY*NZ, MPI_REAL8, peripheral%x%upper, 150, &
-                        MPI_COMM_WORLD, status, ierror)
-    
-    call mpi_sendrecv(vec%y(grid_div_range%range_x%start_idx+1,:,:), NY*NZ, MPI_REAL8, peripheral%x%lower, 150,  &
-                        vec%y(grid_div_range%range_x%end_idx,:,:) ,NY*NZ, MPI_REAL8, peripheral%x%upper, 150, &
-                        MPI_COMM_WORLD, status, ierror)
-    
-    call mpi_sendrecv(vec%z(grid_div_range%range_x%start_idx+1,:,:), NY*NZ, MPI_REAL8, peripheral%x%lower, 100,  &
-                        vec%z(grid_div_range%range_x%end_idx,:,:) ,NY*NZ, MPI_REAL8, peripheral%x%upper, 100, &
-                        MPI_COMM_WORLD, status, ierror)
-    
- 
+    !! 周期境界条件設定
+    call mpiut__exchange( Parallel%comm,           &
+                          Parallel%periodic_pair,  &
+                          vector%x,                &
+                          vector%y,                &
+                          vector%z )
+    call mpiut__barrier( Parallel%comm )
+    !! プロセス間通信で領域境界データを交換
+    call mpiut__exchange( Parallel%comm,           &
+                          Parallel%rank%next,      &
+                          vector%x,                &
+                          vector%y,                &
+                          vector%z )
+    call mpiut__barrier( Parallel%comm )
   end subroutine boundary_condition_vector
 
 
-  function operator_cross_product(a,b)
-    type(field__vector3d_t), intent(in) :: a, b
-    type(field__vector3d_t) :: operator_cross_product
+  function operator_cross_product( a, b )
+    !! ベクトル場の外積
+    type(field__vector_t), intent(in) :: a, b !! 掛けるベクトル場
+    type(field__vector_t) :: operator_cross_product !! 外積
 
     operator_cross_product%x = (a%y)*(b%z) - (a%z)*(b%y)
     operator_cross_product%y = (a%z)*(b%x) - (a%x)*(b%z)
@@ -306,60 +196,55 @@ contains
   end function operator_cross_product
 
 
-  subroutine operator_curl(res, a, grid_div_range, peripheral , status)
-    type(field__vector3d_t), intent(in) :: a
-    type(field__vector3d_t), intent(out) :: res
-    
-    type(rank__peripheral_xyz_t), intent(in) :: peripheral
-    type(grid__div_range_xyz_t), intent(in) :: grid_div_range
+  function operator_curl( a )
+    !! ベクトル場のcurl
+    type(field__vector_t), intent(in) :: a !! これのcurlをとる
+    type(field__vector_t) :: operator_curl !! curlした結果
 
-    integer(SI) :: status(MPI_STATUS_SIZE)
-    integer(SI) :: ierror
-
-    integer(SI) :: i, j, k
+    integer :: i, j, k
     real(DR) :: dx1, dy1, dz1
 
-    dx1 = grid%d1%x
-    dy1 = grid%d1%y
-    dz1 = grid%d1%z
+    dx1 = grid%d1%x  ! x方向の偏微分演算用定数
+    dy1 = grid%d1%y  ! y方向の偏微分演算用定数
+    dz1 = grid%d1%z  ! z方向の偏微分演算用定数
 
-    do k = grid_div_range%range_z%start_idx+1 , grid_div_range%range_z%end_idx-1
-      do j = grid_div_range%range_y%start_idx+1, grid_div_range%range_y%end_idx-1
-       do i = grid_div_range%range_x%start_idx+1, grid_div_range%range_x%end_idx-1 
-          res%x(i,j,k) = dy1*(a%z(i,j+1,k)-a%z(i,j-1,k)) &
+    do k = 1, NZPP
+      ! 境界上の格子点を飛ばして、シミュレーション領域内部
+      ! の格子点上で差分法によりcurlを計算する
+      do j = 1, NYPP
+        do i = 1, NXPP
+          operator_curl%x(i,j,k) = dy1*(a%z(i,j+1,k)-a%z(i,j-1,k)) &
                                  - dz1*(a%y(i,j,k+1)-a%y(i,j,k-1))
-          res%y(i,j,k) = dz1*(a%x(i,j,k+1)-a%x(i,j,k-1)) &
+          operator_curl%y(i,j,k) = dz1*(a%x(i,j,k+1)-a%x(i,j,k-1)) &
                                  - dx1*(a%z(i+1,j,k)-a%z(i-1,j,k))
-          res%z(i,j,k) = dx1*(a%y(i+1,j,k)-a%y(i-1,j,k)) &
+          operator_curl%z(i,j,k) = dx1*(a%y(i+1,j,k)-a%y(i-1,j,k)) &
                                  - dy1*(a%x(i,j+1,k)-a%x(i,j-1,k))
         end do
       end do
     end do
 
-    call boundary_condition_vector(res, grid_div_range, peripheral, status)
-  end subroutine operator_curl
+    call field__boundary_condition( operator_curl )
+      ! 境界の格子点は境界条件ルーチンで設定する
+  end function operator_curl
 
 
-  function operator_div(a, grid_div_range, peripheral, status)
-    type(field__vector3d_t), intent(in)  :: a
-    real(DR), dimension(NX,NY,NZ)        :: operator_div
-    
-    type(grid__div_range_xyz_t), intent(in) :: grid_div_range
-    type(rank__peripheral_xyz_t), intent(in) :: peripheral
+  function operator_div( a )
+    !! ベクトル場のdivergence
+    type(field__vector_t), intent(in) :: a  !! これのdivをとる
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1)        :: operator_div !! 結果
 
-    integer(SI)  :: status(MPI_STATUS_SIZE)
-    integer(SI) :: ierror
-
-    integer(SI) :: i, j, k
+    integer :: i, j, k
     real(DR) :: dx1, dy1, dz1
 
-    dx1 = grid%d1%x
-    dy1 = grid%d1%y
-    dz1 = grid%d1%z
+    dx1 = grid%d1%x   ! x方向の偏微分演算用定数
+    dy1 = grid%d1%y   ! y方向の偏微分演算用定数
+    dz1 = grid%d1%z   ! z方向の偏微分演算用定数
 
-    do k = grid_div_range%range_z%start_idx+1 , grid_div_range%range_z%end_idx-1
-      do j = grid_div_range%range_y%start_idx+1, grid_div_range%range_y%end_idx-1
-       do i = grid_div_range%range_x%start_idx+1, grid_div_range%range_x%end_idx-1 
+    do k = 1, NZPP
+      ! 境界上の格子点を飛ばして、シミュレーション領域内部
+      ! の格子点上で差分法によりdivergenceを計算する
+      do j = 1, NYPP
+         do i = 1, NXPP
            operator_div(i,j,k) = dx1*(a%x(i+1,j,k)-a%x(i-1,j,k)) &
                                + dy1*(a%y(i,j+1,k)-a%y(i,j-1,k)) &
                                + dz1*(a%z(i,j,k+1)-a%z(i,j,k-1))
@@ -367,123 +252,43 @@ contains
       end do
     end do
 
-    call boundary_condition_scalar(operator_div, grid_div_range, peripheral, status)
+    call field__boundary_condition( operator_div )
+      ! 境界の格子点は境界条件ルーチンで設定する
   end function operator_div
 
 
-  function operator_dot_product(a,b)
-    type(field__vector3d_t), intent(in) :: a, b
-    real(DR), dimension(NX,NY,NZ) :: operator_dot_product
+  function operator_dot_product( a, b )
+    !! ベクトル場の内積
+    type(field__vector_t), intent(in) :: a, b  !! 内積をとるベクトル場
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1) :: operator_dot_product !! 計算結果
 
     operator_dot_product = a%x*b%x +a%y*b%y + a%z*b%z
+      ! 配列演算
+      !
+      ! 実際にはここで3重do_loopが回っている
+      ! OpenMP化するときにはこの簡潔な
+      ! 書き方をやめて3重do_loopに書き直す必要がある。
   end function operator_dot_product
 
 
-  function operator_energyintegral(a, grid_div_range)
-    type(field__fluid_t), intent(in) :: a
-    type(grid__div_range_xyz_t), intent(in) :: grid_div_range
-    real(DR)                         :: operator_energyintegral
-    !
-    !   flow_energy = (1/2) * rho * vel^2 = (1/2) * (massflux)^2 / rho
-    !
-    real(DR) :: dvol
-    real(DR), dimension(NX,NY,NZ) :: flux_sq
+  function operator_laplacian_scalar( a )
+    !! スカラー場のラプラシアン
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1), intent(in) :: a  !! 入力スカラー場
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1) :: operator_laplacian_scalar !! 計算結果
 
-    dvol = (grid%delta%x)*(grid%delta%y)*(grid%delta%z)
-         !  Here we suppose that the grid spacings are uniform.
-         !_______________________________________________________/
-
-!   flux_sq = (a%flux).dot.(a%flux)
-    flux_sq = operator_dot_product(a%flux,a%flux)
-
-    operator_energyintegral                                      &
-         = 0.5_DR * sum(    flux_sq(grid_div_range%range_x%start_idx+1: &
-           grid_div_range%range_x%end_idx-1, &
-           grid_div_range%range_y%start_idx+1: & 
-           grid_div_range%range_y%end_idx-1, & 
-           grid_div_range%range_z%start_idx+1: & 
-           grid_div_range%range_z%end_idx-1) &
-            / a%density(grid_div_range%range_x%start_idx+1: &
-           grid_div_range%range_x%end_idx-1, &
-           grid_div_range%range_y%start_idx+1: & 
-           grid_div_range%range_y%end_idx-1, & 
-           grid_div_range%range_z%start_idx+1: & 
-           grid_div_range%range_z%end_idx-1 )) * dvol
-  end function operator_energyintegral
-
-
-  function operator_fluid_add(a,b)
-    type(field__fluid_t), intent(in) :: a
-    type(field__fluid_t), intent(in) :: b
-    type(field__fluid_t) :: operator_fluid_add
-
-    operator_fluid_add%flux%x   = a%flux%x   + b%flux%x
-    operator_fluid_add%flux%y   = a%flux%y   + b%flux%y
-    operator_fluid_add%flux%z   = a%flux%z   + b%flux%z
-    operator_fluid_add%density  = a%density  + b%density
-    operator_fluid_add%pressure = a%pressure + b%pressure
-  end function operator_fluid_add
-  
-  function operator_fluid_times_integer(fluid,integer)
-    type(field__fluid_t), intent(in) :: fluid
-    integer(SI),          intent(in) :: integer
-    type(field__fluid_t) :: operator_fluid_times_integer
-
-    operator_fluid_times_integer%pressure = integer*(fluid%pressure)
-    operator_fluid_times_integer%density  = integer*(fluid%density)
-    operator_fluid_times_integer%flux%x   = integer*(fluid%flux%x)
-    operator_fluid_times_integer%flux%y   = integer*(fluid%flux%y)
-    operator_fluid_times_integer%flux%z   = integer*(fluid%flux%z)
-  end function operator_fluid_times_integer
-
-
-  function operator_fluid_times_real(fluid,real)
-    type(field__fluid_t), intent(in) :: fluid
-    real(DR),             intent(in) :: real
-    type(field__fluid_t) :: operator_fluid_times_real
-
-    operator_fluid_times_real%pressure = real*(fluid%pressure)
-    operator_fluid_times_real%density  = real*(fluid%density)
-    operator_fluid_times_real%flux%x   = real*(fluid%flux%x)
-    operator_fluid_times_real%flux%y   = real*(fluid%flux%y)
-    operator_fluid_times_real%flux%z   = real*(fluid%flux%z)
-  end function operator_fluid_times_real
-
-
-  function operator_integer_times_fluid(integer,fluid)
-    integer(SI),          intent(in) :: integer
-    type(field__fluid_t), intent(in) :: fluid
-    type(field__fluid_t) :: operator_integer_times_fluid
-
-    operator_integer_times_fluid%pressure = integer*(fluid%pressure)
-    operator_integer_times_fluid%density  = integer*(fluid%density)
-    operator_integer_times_fluid%flux%x   = integer*(fluid%flux%x)
-    operator_integer_times_fluid%flux%y   = integer*(fluid%flux%y)
-    operator_integer_times_fluid%flux%z   = integer*(fluid%flux%z)
-  end function operator_integer_times_fluid
-
-
-  function operator_laplacian_scalar(a, grid_div_range, peripheral, status)
-    real(DR), dimension(NX,NY,NZ), intent(in) :: a
-    real(DR), dimension(NX,NY,NZ) :: operator_laplacian_scalar
-  
-    type(grid__div_range_xyz_t), intent(in) :: grid_div_range
-    type(rank__peripheral_xyz_t), intent(in) :: peripheral
-
-    integer(SI) :: status(MPI_STATUS_SIZE)
-    integer(SI) :: ierror
-  
-    integer(SI) :: i, j, k
+    integer :: i, j, k
     real(DR) :: dx2, dy2, dz2
 
-    dx2 = grid%d2%x
-    dy2 = grid%d2%y
-    dz2 = grid%d2%z
+    dx2 = grid%d2%x   ! x方向の2階偏微分演算用定数
+    dy2 = grid%d2%y   ! y方向の2階偏微分演算用定数
+    dz2 = grid%d2%z   ! z方向の2階偏微分演算用定数
 
-    do k = grid_div_range%range_z%start_idx+1 , grid_div_range%range_z%end_idx-1
-      do j = grid_div_range%range_y%start_idx+1, grid_div_range%range_y%end_idx-1
-       do i = grid_div_range%range_x%start_idx+1, grid_div_range%range_x%end_idx-1 
-           operator_laplacian_scalar(i,j,k)  &
+    do k = 1, NZPP
+      ! 境界上の格子点を飛ばして、シミュレーション領域内部
+      ! の格子点上で差分法により計算する
+      do j = 1, NYPP
+        do i = 1, NXPP
+          operator_laplacian_scalar(i,j,k)  &
                = dx2*(a(i+1,j,k)-2*a(i,j,k)+a(i-1,j,k))  &
                + dy2*(a(i,j+1,k)-2*a(i,j,k)+a(i,j-1,k))  &
                + dz2*(a(i,j,k+1)-2*a(i,j,k)+a(i,j,k-1))
@@ -491,29 +296,28 @@ contains
       end do
     end do
 
-    call boundary_condition_scalar(operator_laplacian_scalar, grid_div_range, peripheral, status)
+    call field__boundary_condition( operator_laplacian_scalar )
+      ! 境界の格子点は境界条件ルーチンで設定する
   end function operator_laplacian_scalar
 
 
-  function operator_laplacian_vector(a, grid_div_range, peripheral, status)
-    type(field__vector3d_t), intent(in) :: a
-    type(field__vector3d_t) :: operator_laplacian_vector
+  function operator_laplacian_vector( a )
+    !! ベクトル場のラプラシアン
+    type(field__vector_t), intent(in) :: a  !! 入力ベクトル場
+    type(field__vector_t) :: operator_laplacian_vector !! 計算結果
 
-    type(grid__div_range_xyz_t), intent(in) :: grid_div_range
-    type(rank__peripheral_xyz_t), intent(in) :: peripheral
-
-    integer(SI) :: status(MPI_STATUS_SIZE)
-
-    integer(SI) :: i, j, k
+    integer :: i, j, k
     real(DR) :: dx2, dy2, dz2
 
-    dx2 = grid%d2%x
-    dy2 = grid%d2%y
-    dz2 = grid%d2%z
+    dx2 = grid%d2%x   ! x方向の2階偏微分演算用定数
+    dy2 = grid%d2%y   ! y方向の2階偏微分演算用定数
+    dz2 = grid%d2%z   ! z方向の2階偏微分演算用定数
 
-    do k = grid_div_range%range_z%start_idx+1 , grid_div_range%range_z%end_idx-1
-      do j = grid_div_range%range_y%start_idx+1, grid_div_range%range_y%end_idx-1
-       do i = grid_div_range%range_x%start_idx+1, grid_div_range%range_x%end_idx-1 
+    do k = 1, NZPP
+      ! 境界上の格子点を飛ばして、シミュレーション領域内部
+      ! の格子点上で差分法により計算する
+      do j = 1, NYPP
+        do i = 1, NXPP
           operator_laplacian_vector%x(i,j,k)  &
                = dx2*(a%x(i+1,j,k)-2*a%x(i,j,k)+a%x(i-1,j,k))  &
                + dy2*(a%x(i,j+1,k)-2*a%x(i,j,k)+a%x(i,j-1,k))  &
@@ -530,27 +334,16 @@ contains
      end do
     end do
 
-    call boundary_condition_vector(operator_laplacian_vector,grid_div_range,peripheral,status)
+    call field__boundary_condition( operator_laplacian_vector )
+      ! 境界の格子点は境界条件ルーチンで設定する
   end function operator_laplacian_vector
 
 
-  function operator_real_times_fluid(real,fluid)
-    real(DR),             intent(in) :: real
-    type(field__fluid_t), intent(in) :: fluid
-    type(field__fluid_t) :: operator_real_times_fluid
-
-    operator_real_times_fluid%pressure = real*(fluid%pressure)
-    operator_real_times_fluid%density  = real*(fluid%density)
-    operator_real_times_fluid%flux%x   = real*(fluid%flux%x)
-    operator_real_times_fluid%flux%y   = real*(fluid%flux%y)
-    operator_real_times_fluid%flux%z   = real*(fluid%flux%z)
-  end function operator_real_times_fluid
-
-
-  function operator_real_times_vector(real,vec)
-    real(DR),                intent(in) :: real
-    type(field__vector3d_t), intent(in) :: vec
-    type(field__vector3d_t) :: operator_real_times_vector
+  function operator_real_times_vector( real, vec )
+    !! 実数にベクトル場を掛ける演算子
+    real(DR), intent(in) :: real !! 掛ける実数
+    type(field__vector_t), intent(in) :: vec  !! 流体場
+    type(field__vector_t) :: operator_real_times_vector !! 計算結果
 
     operator_real_times_vector%x = real*(vec%x)
     operator_real_times_vector%y = real*(vec%y)
@@ -558,10 +351,11 @@ contains
   end function operator_real_times_vector
 
 
-  function operator_scalar_times_vector(scalar,vec)
-    real(DR), dimension(NX,NY,NZ), intent(in) :: scalar
-    type(field__vector3d_t),        intent(in) :: vec
-    type(field__vector3d_t)             :: operator_scalar_times_vector
+  function operator_scalar_times_vector( scalar, vec )
+    !! スカラー場にベクトル場を掛ける演算子
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1), intent(in) :: scalar  !! スカラー場
+    type(field__vector_t), intent(in) :: vec     !! ベクトル場
+    type(field__vector_t) :: operator_scalar_times_vector !! 計算結果
 
     operator_scalar_times_vector%x = scalar*(vec%x)
     operator_scalar_times_vector%y = scalar*(vec%y)
@@ -569,29 +363,32 @@ contains
   end function operator_scalar_times_vector
 
 
-  function operator_scalarintegral(a, grid_div_range)
-    real(DR), dimension(NX,NY,NZ), intent(in) :: a
-    type(grid__div_range_xyz_t), intent(in) :: grid_div_range
-    real(DR) :: operator_scalarintegral
+  function operator_scalarintegral( a )
+    !! スカラー場の体積積分演算子
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1), intent(in) :: a  !! スカラー場
+    real(DR) :: operator_scalarintegral    !! 体積積分結果
 
     real(DR) :: dvol
 
     dvol = (grid%delta%x)*(grid%delta%y)*(grid%delta%z)
-         !
-         !  Here we suppose that the grid spacings are uniform.
-         !
-    operator_scalarintegral = sum( a(grid_div_range%range_x%start_idx+1: &
-           grid_div_range%range_x%end_idx-1, &
-           grid_div_range%range_y%start_idx+1: & 
-           grid_div_range%range_y%end_idx-1, & 
-           grid_div_range%range_z%start_idx+1: & 
-           grid_div_range%range_z%end_idx-1) ) * dvol
+         ! 現在のシュミレーションでは格子間隔はx, y, z それぞれに
+         ! 一様であることを仮定している。つまりdx, dy, dzは空間位置に
+         ! 依存せず一定である。
+    operator_scalarintegral = sum( a(1:NXPP,  &
+                                     1:NYPP,  &
+                                     1:NZPP) ) * dvol
+      ! ここで配列演算の添字が0:NXPP1等ではなく1:NXPPなどに
+      ! 限定されていることに注意。これは体積積分の範囲を計算領域の
+      ! 内部に限定していること、つまり境界上の格子点を除いて
+      ! 積分していることを意味する。境界上の格子点まで
+      ! 入れると重複してカウントしてしまうからである 
   end function operator_scalarintegral
 
 
-  function operator_vector_add(a,b)
-    type(field__vector3d_t), intent(in) :: a, b
-    type(field__vector3d_t) :: operator_vector_add
+  function operator_vector_add( a, b )
+    !! ベクトル場の和の演算子
+    type(field__vector_t), intent(in) :: a, b    !! 和をとるベクトル場
+    type(field__vector_t) :: operator_vector_add !! 計算結果
 
     operator_vector_add%x = a%x + b%x
     operator_vector_add%y = a%y + b%y
@@ -599,21 +396,23 @@ contains
   end function operator_vector_add
 
 
-  function operator_vector_divby_scalar(vec,scalar)
-    type(field__vector3d_t),       intent(in) :: vec
-    real(DR), dimension(NX,NY,NZ), intent(in) :: scalar
-    type(field__vector3d_t) :: operator_vector_divby_scalar
-    
+  function operator_vector_divby_scalar( vec, scalar )
+    !! ベクトル場の各成分をスカラー場で割る
+    type(field__vector_t), intent(in) :: vec    !! ベクトル場
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1), intent(in) :: scalar !! スカラー場
+    type(field__vector_t) :: operator_vector_divby_scalar !! 計算結果
+
     operator_vector_divby_scalar%x = (vec%x) / scalar
     operator_vector_divby_scalar%y = (vec%y) / scalar
     operator_vector_divby_scalar%z = (vec%z) / scalar
   end function operator_vector_divby_scalar
 
 
-  function operator_vector_times_real(vec,real)
-    type(field__vector3d_t), intent(in) :: vec
-    real(DR),                intent(in) :: real
-    type(field__vector3d_t) :: operator_vector_times_real
+  function operator_vector_times_real( vec, real )
+    !! ベクトル場の実数倍の演算子
+    type(field__vector_t), intent(in) :: vec  !! ベクトル場
+    real(DR), intent(in) :: real !! 掛ける実数
+    type(field__vector_t) :: operator_vector_times_real  !! 計算結果
 
     operator_vector_times_real%x = real*(vec%x)
     operator_vector_times_real%y = real*(vec%y)
@@ -621,10 +420,11 @@ contains
   end function operator_vector_times_real
 
 
-  function operator_vector_times_scalar(vec,scalar)
-    type(field__vector3d_t),       intent(in) :: vec
-    real(DR), dimension(NX,NY,NZ), intent(in) :: scalar
-    type(field__vector3d_t) :: operator_vector_times_scalar
+  function operator_vector_times_scalar( vec, scalar )
+    !! ベクトル場にスカラー場を掛ける
+    type(field__vector_t), intent(in) :: vec    !! ベクトル場
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1), intent(in) :: scalar !! スカラー場
+    type(field__vector_t) :: operator_vector_times_scalar  !! 計算結果
 
     operator_vector_times_scalar%x = scalar*(vec%x)
     operator_vector_times_scalar%y = scalar*(vec%y)
@@ -632,3 +432,4 @@ contains
   end function operator_vector_times_scalar
 
 end module field_m
+

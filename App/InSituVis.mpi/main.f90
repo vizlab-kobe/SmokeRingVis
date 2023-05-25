@@ -1,104 +1,157 @@
-!-------------------------------------------------------------------
-! class-hpc-smoke-ring: A simple sample field solver.
-!
-!    by Akira Kageyama, Kobe University, Japan.
-!       email: sgks@mac.com
-!
-!    This software is released under the MIT License.
-!
-!-------------------------------------------------------------------
-!    src/main.f90
-!-------------------------------------------------------------------
-
+!!>
+!   author: Akira Kageyama
+!   date: 2023.05.05
+! 
+!   渦輪 (smoke ring) の形成シミュレーション
+! 
+!   神戸大学情報知能工学科の講義 "HPC" （B3対象）用サンプルコード
+!  
+!   ### 形状
+!     直方体領域。3次元周期境界条件。カーテシアン座標。
+!  
+!   ### 計算手法
+!     空間離散化は2次中心差分法。時間積分は4次ルンゲ・クッタ法。
+!  
+!   ### 実行方法
+!     (1) cd src
+!     (2) make
+!     (3) cd ../slice_grapher
+!     (4) make
+!!<
 program main_m
-!  use omp_lib
-!  use constants_m   ! numerical constants
-!  use rank_m        ! information for rank
-!  use ut_m          ! utility functions
-!  use params_m      ! parameters
-!  use debug_m       ! for debugging
-!  use grid_m        ! grid mesh
-!  use field_m       ! field operators and operations
-!  use slicedata_m   ! generate 2-d sliced data
-!  use solver_m      ! 4th order runge-kutta integration method
-!  use job_m         ! job monitor
+!  use constants_m  !! 定数
+!  use field_m      !! スカラー場・ベクトル場
+!  use fluid_m      !! 流体場の構造体定義
+!  use grid_m       !! 格子点情報
+!  use job_m        !! ジョブ管理
+!  use kutimer_m    !! 時間測定モジュール ;call kutimer__('main  ','sample')
+!  use mpiut_m      !! mpi関係ユーティリティ
+!  use parallel_m   !! MPI並列化
+!  use params_m     !! パラメータ
+!  use solver_m     !! ナビエ・ストークス方程式ソルバ
+!  use ut_m         !! ユーティリティ
+!  use vis2d_m      !! 断面可視化
   use smoke_ring_m
-  use InSituVis_m
+!  use InSituVis_m
+  implicit none    !! 暗黙の型宣言無効化。必須
 
-  implicit none
-
-  integer(SI) :: myrank, nprocs, ierror
-  integer(SI) :: myrank_x, myrank_y, myrank_z
-  integer(SI) :: status(MPI_STATUS_SIZE)
-  integer(SI) :: lower, upper
-  real(DR) :: t0, t1
-
-  integer(DI) :: nloop
-  real(DR) :: dt, time
-
-  type(field__fluid_t) :: fluid
-  type(field__fluid_t) :: fluid_test
-
-  type(rank__div_xyz_t) :: rank_div
-  type(rank__peripheral_xyz_t) :: peripheral
-  type(grid__div_range_xyz_t) :: grid_div_range
+  real(DR) :: dt, time   !! 時間刻み幅と時刻
+  type(fluid_t) :: fluid !! 流体場データの構造体
+  type(vis2d_t) :: vis2d !! 断面可視化用
 
   ! IN_SITU_VIS: Instance
   ! {
-  type( InSituVis ) :: insitu_vis
-  insitu_vis = InSituVis( VolumeRendering ) ! OrthoSlice, Isosurface, or VolumeRendering
+!  type( InSituVis ) :: insitu_vis
+!  insitu_vis = InSituVis( Isosurface ) ! OrthoSlice, Isosurface, or VolumeRendering
   ! }
 
-  call mpi_init(ierror)
-  call mpi_comm_rank(MPI_COMM_WORLD, myrank, ierror)
-  call mpi_comm_size(MPI_COMM_WORLD, nprocs, ierror)
-  call cpu_time(t0)
+                                                   call kutimer__start('main  ')
 
-  call rank__initialize(myrank, rank_div)
-  call rank__peripheral(rank_div, peripheral)
-  call grid__determine_range(grid_div_range, rank_div)
+  call Parallel%initialize                        ;call kutimer__('main  ','para i')
+    !! MPI並列化初期化処理。Parallel変数はparallel.efで定義
+    !! された parallel_t 型の変数。initializeはそのメンバー関数。
+  call Job%initialize( time, fluid )              ;call kutimer__('main  ','job  i')
+    !! シミュレーションジョブの初期化作業。初期条件の設定。
+    !! 接続ジョブの場合はディスクからリスタートデータを読み込む。
+  call iPrint                                     ;call kutimer__('main  ','iprint')
+    !! 内部副プログラム。定数とパラメータを書き出す
+  call vis2d%initialize                           ;call kutimer__('main  ','vis2 i')
+    !! 可視化モジュール（vis2d_m）の初期化。
 
-  call params__read
-  call grid%initialize(grid_div_range)
-  call solver__initialize(fluid,grid_div_range,peripheral,status)
-  call slicedata__initialize(myrank)
+  if ( Job%nloop == 0 ) then
+    call vis2d%draw( time, Job%nloop, fluid )     ;call kutimer__('main  ','vis2  ')
+      !! シミュレーション領域の断面図をSVGフォーマットで出力する。
+    call Job%diagnosis( Job%nloop, time, fluid )  ;call kutimer__('main  ','job di')
+      !! solverモジュールで定義されているdiagnosis（診断）
+      !! サブルーチンを呼び出す。診断結果はJob.carte（カルテ）に設定。
+  end if
 
-  time = 0.0_DR
-  nloop = 0
-
-  call solver__diagnosis(myrank,nloop,time,fluid,grid_div_range)
-  dt = solver__set_time_step(nloop,fluid)
+  dt = Solver%set_time_step( Job%nloop, fluid )   ;call kutimer__('main  ','set dt')
+    !! 時間刻み幅 dt をCFL条件から決める。
+    !! CFL条件は流体の状態に流体の状態に依存して変化する。
+    !! たとえば、流体の一部が高温になると、そこでの音速が速くなり、
+    !! 音速によって決まるCFL条件が厳しくなる（つまりdtが小さくなる）
+    !! ここでは初期状態における流体の状態に基づいてdtが決まる。
 
   ! IN_SITU_VIS: Initialize
   ! {
-  call insitu_vis % initialize()
+!  insitu_vis = InSituVis( Isosurface ) ! OrthoSlice, Isosurface, or VolumeRendering
+!  call insitu_vis % initialize()
   ! }
 
-  do while(job__karte%state=="fine")
-    call debug__print("running. nloop=",nloop)
-    call solver__advance(time,dt,fluid,grid_div_range,peripheral,status)
-    dt = solver__set_time_step(nloop,fluid)
-    nloop = nloop + 1
-    call solver__diagnosis(myrank,nloop,time,fluid,grid_div_range)
-    call slicedata__write(nloop,time,fluid,myrank,grid_div_range,peripheral,status)
+  do while( Job%karte == "fine" )                 ;call kutimer__count
+    !! このシミュレーションのメインループ。ジョブカルテが
+    !! 「健康 (fine)」状態である限りシミュレーションを続行する。 
+    Job%nloop = Job%nloop + 1  
+      !! ループカウンタのインクリメント
+    call Solver%advance( time, dt, fluid )        ;call kutimer__('main  ','solv a')
+      !! ナビエ・ストークス方程式に基づいて流体 (fluid) の状態を
+      !! 一時刻ステップ dt だけ進める。
+    dt = Solver%set_time_step( Job%nloop, fluid ) ;call kutimer__('main  ','set dt')
+      !! 流体の状態が変わったのでCFL条件に基づき時間刻み幅dt
+      !! を設定し直す。
+      !! 厳密に言えば毎ステップこの再設定をしているわけではなく、
+      !! このsolver__set_time_stepルーチンの冒頭で判断し、
+      !! 数十ステップに一度だけ実際には変更を行うようなskip操作
+      !! をしている。CFL条件に基づいた計算は時間がかかるが、
+      !! 毎ステップdtを精密に調整する必要はないからである。
+    call Job%diagnosis( Job%nloop, time, fluid )  ;call kutimer__('main  ','job di')
+      !! 診断。異常があればjob.carteにセットする。
+    call vis2d%draw( time, Job%nloop, fluid )     ;call kutimer__('main  ','vis2  ')
+      !! シミュレーション領域の断面図をSVGで出力する。
 
     ! IN_SITU_VIS: Put & Execute
     ! {
-    call insitu_vis % put( fluid % pressure, NX, NY, NZ )
-    call insitu_vis % exec( time, nloop )
+!    call insitu_vis % put( fluid % pressure, NXPP, NYPP, NZPP )
+!    call insitu_vis % exec( time, job % nloop )
     ! }
 
-    if (nloop>=params__get_integer('Total_nloop'))  &
-      call job__karte%set("loop_max")
+    if ( Job%nloop >= Job%nloop_end ) then
+      Job%karte = "loop_max"
+      !! あらかじめparamsモジュールで設定されたループカウンタの
+      !! 上限値に達したらジョブを停止する。
+    end if
   end do
-  call cpu_time(t1) 
-  print *, "elappsed time", t1 - t0
 
-  ! IN_SITU_VIS: Finalize
-  ! {
-  call insitu_vis % finalize()
-  ! }
+  call Job%finalize( Job%nloop, time, fluid )     !{main  }{job f}
+    !! ジョブの後始末。MPI終了処理を含む。
+                                                   call kutimer__end('main  ')
+                                                   call kutimer__print
+  call Parallel%finalize
+    !! MPI並列化終了処理
 
-  call mpi_finalize(ierror)
-  call job__finalize(nloop)
+contains
+
+  subroutine iPrint
+    integer :: comm
+    comm = Parallel%comm
+    call mpiut__message_leader( comm, "Job_name",     &
+                                      Params%get_string( 'Job_name') )
+    call mpiut__message_leader( comm, "Job_seq",     &
+                                      Params%get_integer( 'Job_seq') )
+    call mpiut__message_leader( comm, "Nloops_this_job",  &
+                                      Params%get_integer( 'Nloops_this_job' ) )
+    call mpiut__message_leader( comm, "Job.nloop_start", Job%nloop_start )
+    call mpiut__message_leader( comm, "Job.nloop_end",   Job%nloop_end )
+    call mpiut__message_leader( comm, "NPROC_X", NPROC_X )
+    call mpiut__message_leader( comm, "NPROC_Y", NPROC_Y )
+    call mpiut__message_leader( comm, "NPROC_Z", NPROC_Z )
+    call mpiut__message_leader( comm, "NXPP", NXPP )
+    call mpiut__message_leader( comm, "NYPP", NYPP )
+    call mpiut__message_leader( comm, "NZPP", NZPP )
+    call mpiut__message_leader( comm, "NX_GLOBAL", NX_GLOBAL )
+    call mpiut__message_leader( comm, "NY_GLOBAL", NY_GLOBAL )
+    call mpiut__message_leader( comm, "NZ_GLOBAL", NZ_GLOBAL )
+    call mpiut__message_leader( comm, "XMIN", XMIN )
+    call mpiut__message_leader( comm, "XMAX", XMAX )
+    call mpiut__message_leader( comm, "YMIN", YMIN )
+    call mpiut__message_leader( comm, "YMAX", YMAX )
+    call mpiut__message_leader( comm, "ZMIN", ZMIN )
+    call mpiut__message_leader( comm, "ZMAX", ZMAX )
+    call mpiut__message_leader( comm, "Viscous_diffusivity",  &
+                                      Params%get_double( 'Viscous_diffusivity' ) )
+    call mpiut__message_leader( comm, "Thermal_diffusivity",  &
+                                      Params%get_double( 'Thermal_diffusivity' ) )
+  end subroutine iPrint
+
 end program main_m

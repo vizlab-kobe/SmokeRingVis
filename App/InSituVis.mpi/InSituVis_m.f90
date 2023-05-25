@@ -72,7 +72,7 @@ module InSituVis_m
        import
        type( C_ptr ),     value :: this
        real( C_double ),  value :: time_value
-       integer( C_long ), value :: time_index
+       integer( C_int ), value :: time_index
      end subroutine C_InSituVis_exec
   end interface
 
@@ -127,7 +127,7 @@ contains
     implicit none
     class( InSituVis ), intent( in ) :: this
     real( C_double ),   intent( in ) :: time_value
-    integer( C_long ),  intent( in ) :: time_index
+    integer( C_int ),  intent( in ) :: time_index
     call C_InSituVis_exec( this % ptr, time_value, time_index )
   end subroutine InSituVis_exec
 
