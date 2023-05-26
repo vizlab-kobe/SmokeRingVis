@@ -32,7 +32,7 @@ program main_m
 !  use ut_m         !! ユーティリティ
 !  use vis2d_m      !! 断面可視化
   use smoke_ring_m
-!  use InSituVis_m
+  use InSituVis_m
   implicit none    !! 暗黙の型宣言無効化。必須
 
   real(DR) :: dt, time   !! 時間刻み幅と時刻

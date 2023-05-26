@@ -56,9 +56,9 @@ module constants_m
 !  integer, parameter :: NZPP =  20
   !! Test 1 (Small: 2 x 1 x 1 = 2 procs.)
   !! {
-  integer, parameter :: NXPP =  80   ! PP = Per Process 
-  integer, parameter :: NYPP =  80
-  integer, parameter :: NZPP =  80
+  integer, parameter :: NXPP =  40   ! PP = Per Process 
+  integer, parameter :: NYPP =  40
+  integer, parameter :: NZPP =  40
   !! }
   integer, parameter :: NXPP1 = NXPP + 1  ! PP1 = PP plus one
   integer, parameter :: NYPP1 = NYPP + 1
