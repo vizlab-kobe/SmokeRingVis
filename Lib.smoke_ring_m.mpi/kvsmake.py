@@ -70,7 +70,7 @@ def MakeSmokeRing( option ):
 
     command = "cd smoke-ring/src/" + s
     command += make_option
-    if 'build' in option: command += s + "cp *.o *.mod ../.." + s + "rm ../../main.o" + s
+    if 'build' in option: command += s + "cp *.F90 ../.." + s + "rm ../../main.F90" + s
     os.system( command )
 
 #=============================================================================
