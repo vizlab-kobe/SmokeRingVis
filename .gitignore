@@ -17,3 +17,4 @@ Lib.smoke_ring_m.mpi/params.F90
 Lib.smoke_ring_m.mpi/solver.F90
 Lib.smoke_ring_m.mpi/ut.F90
 Lib.smoke_ring_m.mpi/vis2d.F90
+App/InSituVis.mpi/InSituVis.mpi

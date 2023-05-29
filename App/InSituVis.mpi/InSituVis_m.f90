@@ -1,5 +1,6 @@
 module InSituVis_m
   use iso_c_binding
+  use constants_m
   implicit none
 
   ! Class definition
@@ -45,10 +46,13 @@ module InSituVis_m
        type( C_ptr ), value :: this
      end subroutine C_InSituVis_delete
 
-     subroutine C_InSituVis_initialize( this )&
+     subroutine C_InSituVis_initialize( this, gdimx, gdimy, gdimz )&
           bind( C, name="InSituVis_initialize" )
        import
        type( C_ptr ), value :: this
+       integer( C_int ), value :: gdimx
+       integer( C_int ), value :: gdimy
+       integer( C_int ), value :: gdimz
      end subroutine C_InSituVis_initialize
 
      subroutine C_InSituVis_finalize( this )&
@@ -57,13 +61,16 @@ module InSituVis_m
        type( C_ptr ), value :: this
      end subroutine C_InSituVis_finalize
 
-     subroutine C_InSituVis_put( this, values, dimx, dimy, dimz )&
+     subroutine C_InSituVis_put( this, values, dimx, dimy, dimz, offx, offy, offz )&
           bind( C, name="InSituVis_put" )
        import
        type( C_ptr ),    value :: this
        integer( C_int ), value :: dimx
        integer( C_int ), value :: dimy
        integer( C_int ), value :: dimz
+       integer( C_int ), value :: offx
+       integer( C_int ), value :: offy
+       integer( C_int ), value :: offz
        real( C_double )        :: values( dimx * dimy * dimz )
      end subroutine C_InSituVis_put
 
@@ -101,10 +108,13 @@ contains
     this % ptr = C_NULL_ptr
   end subroutine InSituVis_delete
 
-  subroutine InSituVis_initialize( this )
+  subroutine InSituVis_initialize( this, gdimx, gdimy, gdimz )
     implicit none
     class( InSituVis ), intent( in ) :: this
-    call C_InSituVis_initialize( this % ptr )
+    integer( C_int ),   intent( in ) :: gdimx
+    integer( C_int ),   intent( in ) :: gdimy
+    integer( C_int ),   intent( in ) :: gdimz
+    call C_InSituVis_initialize( this % ptr, gdimx, gdimy, gdimz )
   end subroutine InSituVis_initialize
 
   subroutine InSituVis_finalize( this )
@@ -113,14 +123,17 @@ contains
     call C_InSituVis_finalize( this % ptr )
   end subroutine InSituVis_finalize
 
-  subroutine InSituVis_put( this, values, dimx, dimy, dimz )
+  subroutine InSituVis_put( this, values, dimx, dimy, dimz, offx, offy, offz )
     implicit none
     class( InSituVis ), intent( in ) :: this
     integer( C_int ),   intent( in ) :: dimx
     integer( C_int ),   intent( in ) :: dimy
     integer( C_int ),   intent( in ) :: dimz
+    integer( C_int ),   intent( in ) :: offx
+    integer( C_int ),   intent( in ) :: offy
+    integer( C_int ),   intent( in ) :: offz
     real( C_double ),   intent( in ) :: values( dimx * dimy * dimz )
-    call C_InSituVis_put( this % ptr, values, dimx, dimy, dimz )
+    call C_InSituVis_put( this % ptr, values, dimx, dimy, dimz, offx, offy, offz )
   end subroutine InSituVis_put
 
   subroutine InSituVis_exec( this, time_value, time_index )

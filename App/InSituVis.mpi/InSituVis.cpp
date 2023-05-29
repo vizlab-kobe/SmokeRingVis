@@ -19,11 +19,51 @@ const auto Viewpoint = InSituVis::Viewpoint{ { ViewDir, ViewPos } }; // viewpoin
 } // end of namespace Params
 
 // Type definition
-using Adaptor = InSituVis::mpi::Adaptor;
-using Pipeline = Adaptor::Pipeline;
-using Screen = Adaptor::Screen;
 using Volume = kvs::StructuredVolumeObject;
 using Object = kvs::ObjectBase;
+using Pipeline = InSituVis::mpi::Adaptor::Pipeline;
+using Screen = InSituVis::mpi::Adaptor::Screen;
+
+// Adaptor
+class Adaptor : public InSituVis::mpi::Adaptor
+{
+    using BaseClass = InSituVis::mpi::Adaptor;
+
+private:
+    kvs::Vec3ui m_global_dims{ 0, 0, 0 };
+
+public:
+    Adaptor() = default;
+    virtual ~Adaptor() = default;
+
+    void setGlobalDims( const kvs::Vec3ui& dims ) { m_global_dims = dims; }
+    const kvs::Vec3ui& globalDims() const { return m_global_dims; }
+
+    void exec( const SimTime sim_time )
+    {
+        auto min_value = Volume::DownCast( BaseClass::objects().begin()->get() )->minValue();
+        auto max_value = Volume::DownCast( BaseClass::objects().begin()->get() )->maxValue();
+        for ( auto& object : BaseClass::objects() )
+        {
+            auto* volume = Volume::DownCast( object.get() );
+            volume->updateMinMaxValues();
+
+            min_value = kvs::Math::Min( min_value, volume->minValue() );
+            max_value = kvs::Math::Max( max_value, volume->maxValue() );
+        }
+
+        BaseClass::world().allReduce( min_value, min_value, MPI_MIN );
+        BaseClass::world().allReduce( max_value, max_value, MPI_MAX );
+
+        for ( auto& object : BaseClass::objects() )
+        {
+            auto* volume = Volume::DownCast( object.get() );
+            volume->setMinMaxValues( min_value, max_value );
+        }
+
+        BaseClass::exec( sim_time );
+    }
+};
 
 // Visualization pipelines
 inline Pipeline OrthoSlice( const kvs::ColorMap& cmap )
@@ -187,6 +227,7 @@ Adaptor* InSituVis_new( const int method )
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
     vis->setAnalysisInterval( Params::AnalysisInterval );
+    vis->setOutputSubImageEnabled( true );
 
     const auto cmap = kvs::ColorMap::CoolWarm();
     switch ( method )
@@ -205,8 +246,9 @@ void InSituVis_delete( Adaptor* self )
     if ( self ) delete self;
 }
 
-void InSituVis_initialize( Adaptor* self )
+void InSituVis_initialize( Adaptor* self, int gdimx, int gdimy, int gdimz )
 {
+    self->setGlobalDims( kvs::Vec3ui( gdimx, gdimy, gdimz ) );
     self->initialize();
 }
 
@@ -215,12 +257,19 @@ void InSituVis_finalize( Adaptor* self )
     self->finalize();
 }
 
-void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz )
+void InSituVis_put(
+    Adaptor* self,
+    double* values,
+    int dimx, int dimy, int dimz,
+    int offx, int offy, int offz )
 {
+    const auto dims = kvs::Vec3ui( dimx, dimy, dimz );
+    const auto size = size_t( dimx * dimy * dimz );
+
     Volume volume;
     volume.setVeclen( 1 );
-    volume.setResolution( kvs::Vec3ui( dimx, dimy, dimz ) );
-    volume.setValues( kvs::ValueArray<double>{ values, size_t( dimx * dimy * dimz ) } );
+    volume.setResolution( dims );
+    volume.setValues( kvs::ValueArray<double>{ values, size } );
     volume.setGridTypeToUniform();
     volume.updateMinMaxValues();
     volume.updateMinMaxCoords();
