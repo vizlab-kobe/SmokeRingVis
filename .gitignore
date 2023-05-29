@@ -5,3 +5,15 @@
 *.kvs
 Test/SmokeRing/SmokeRing
 .DS_Store
+Lib.smoke_ring_m.mpi/kutimer.F90
+Lib.smoke_ring_m.mpi/job.F90
+Lib.smoke_ring_m.mpi/grid.F90
+Lib.smoke_ring_m.mpi/fluid.F90
+Lib.smoke_ring_m.mpi/field.F90
+Lib.smoke_ring_m.mpi/constants.F90
+Lib.smoke_ring_m.mpi/mpiut.F90
+Lib.smoke_ring_m.mpi/parallel.F90
+Lib.smoke_ring_m.mpi/params.F90
+Lib.smoke_ring_m.mpi/solver.F90
+Lib.smoke_ring_m.mpi/ut.F90
+Lib.smoke_ring_m.mpi/vis2d.F90
