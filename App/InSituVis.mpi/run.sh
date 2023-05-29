@@ -12,4 +12,9 @@ if [ ! -d $DATA_DIR ]; then
     mkdir $DATA_DIR"/"$VIS2D_DIR
 fi
 
-mpiexec -n 2 ./$PROGRAM $PARAMS_FILE
+NPROC_X=`cat ./make.sh | grep '^NPROC_X=' | awk -F "=" '{print $2}' | awk '{print $1}'`
+NPROC_Y=`cat ./make.sh | grep '^NPROC_Y=' | awk -F "=" '{print $2}' | awk '{print $1}'`
+NPROC_Z=`cat ./make.sh | grep '^NPROC_Z=' | awk -F "=" '{print $2}' | awk '{print $1}'`
+NPROCS=`echo "$NPROC_X * $NPROC_Y * $NPROC_Z" | bc`
+
+mpiexec -np $NPROCS ./$PROGRAM $PARAMS_FILE
