@@ -13,6 +13,8 @@ module InSituVis_m
      procedure :: delete => InSituVis_delete
      procedure :: initialize => InSituVis_initialize
      procedure :: finalize => InSituVis_finalize
+     procedure :: setGlobalDims => InSituVis_setGlobalDims
+     procedure :: setOffset => InSituVis_setOffset
      procedure :: put => InSituVis_put
      procedure :: exec => InSituVis_exec
   end type InSituVis
@@ -46,13 +48,10 @@ module InSituVis_m
        type( C_ptr ), value :: this
      end subroutine C_InSituVis_delete
 
-     subroutine C_InSituVis_initialize( this, gdimx, gdimy, gdimz )&
+     subroutine C_InSituVis_initialize( this )&
           bind( C, name="InSituVis_initialize" )
        import
        type( C_ptr ), value :: this
-       integer( C_int ), value :: gdimx
-       integer( C_int ), value :: gdimy
-       integer( C_int ), value :: gdimz
      end subroutine C_InSituVis_initialize
 
      subroutine C_InSituVis_finalize( this )&
@@ -61,16 +60,31 @@ module InSituVis_m
        type( C_ptr ), value :: this
      end subroutine C_InSituVis_finalize
 
-     subroutine C_InSituVis_put( this, values, dimx, dimy, dimz, offx, offy, offz )&
+     subroutine C_InSituVis_setGlobalDims( this, dimx, dimy, dimz )&
+          bind( C, name="InSituVis_setGlobalDims" )
+       import
+       type( C_ptr ), value :: this
+       integer( C_int ), value :: dimx
+       integer( C_int ), value :: dimy
+       integer( C_int ), value :: dimz
+     end subroutine C_InSituVis_setGlobalDims
+
+     subroutine C_InSituVis_setOffset( this, offx, offy, offz )&
+          bind( C, name="InSituVis_setOffset" )
+       import
+       type( C_ptr ), value :: this
+       integer( C_int ), value :: offx
+       integer( C_int ), value :: offy
+       integer( C_int ), value :: offz
+     end subroutine C_InSituVis_setOffset
+
+     subroutine C_InSituVis_put( this, values, dimx, dimy, dimz )&
           bind( C, name="InSituVis_put" )
        import
        type( C_ptr ),    value :: this
        integer( C_int ), value :: dimx
        integer( C_int ), value :: dimy
        integer( C_int ), value :: dimz
-       integer( C_int ), value :: offx
-       integer( C_int ), value :: offy
-       integer( C_int ), value :: offz
        real( C_double )        :: values( dimx * dimy * dimz )
      end subroutine C_InSituVis_put
 
@@ -108,13 +122,10 @@ contains
     this % ptr = C_NULL_ptr
   end subroutine InSituVis_delete
 
-  subroutine InSituVis_initialize( this, gdimx, gdimy, gdimz )
+  subroutine InSituVis_initialize( this )
     implicit none
     class( InSituVis ), intent( in ) :: this
-    integer( C_int ),   intent( in ) :: gdimx
-    integer( C_int ),   intent( in ) :: gdimy
-    integer( C_int ),   intent( in ) :: gdimz
-    call C_InSituVis_initialize( this % ptr, gdimx, gdimy, gdimz )
+    call C_InSituVis_initialize( this % ptr )
   end subroutine InSituVis_initialize
 
   subroutine InSituVis_finalize( this )
@@ -123,17 +134,32 @@ contains
     call C_InSituVis_finalize( this % ptr )
   end subroutine InSituVis_finalize
 
-  subroutine InSituVis_put( this, values, dimx, dimy, dimz, offx, offy, offz )
+  subroutine InSituVis_setGlobalDims( this, dimx, dimy, dimz )
     implicit none
     class( InSituVis ), intent( in ) :: this
     integer( C_int ),   intent( in ) :: dimx
     integer( C_int ),   intent( in ) :: dimy
     integer( C_int ),   intent( in ) :: dimz
+    call C_InSituVis_setGlobalDims( this % ptr, dimx, dimy, dimz )
+  end subroutine InSituVis_setGlobalDims
+
+  subroutine InSituVis_setOffset( this, offx, offy, offz )
+    implicit none
+    class( InSituVis ), intent( in ) :: this
     integer( C_int ),   intent( in ) :: offx
     integer( C_int ),   intent( in ) :: offy
     integer( C_int ),   intent( in ) :: offz
+    call C_InSituVis_setOffset( this % ptr, offx, offy, offz )
+  end subroutine InSituVis_setOffset
+
+  subroutine InSituVis_put( this, values, dimx, dimy, dimz )
+    implicit none
+    class( InSituVis ), intent( in ) :: this
+    integer( C_int ),   intent( in ) :: dimx
+    integer( C_int ),   intent( in ) :: dimy
+    integer( C_int ),   intent( in ) :: dimz
     real( C_double ),   intent( in ) :: values( dimx * dimy * dimz )
-    call C_InSituVis_put( this % ptr, values, dimx, dimy, dimz, offx, offy, offz )
+    call C_InSituVis_put( this % ptr, values, dimx, dimy, dimz )
   end subroutine InSituVis_put
 
   subroutine InSituVis_exec( this, time_value, time_index )

@@ -39,10 +39,11 @@ program main_m
   type(fluid_t) :: fluid !! 流体場データの構造体
   type(vis2d_t) :: vis2d !! 断面可視化用
 
-  ! IN_SITU_VIS: Instance
+  ! IN_SITU_VIS: Parameters
   ! {
-!  type( InSituVis ) :: insitu_vis
-!  insitu_vis = InSituVis( Isosurface ) ! OrthoSlice, Isosurface, or VolumeRendering
+  type( InSituVis ) :: insitu_vis       !! in-situ vis. adaptor
+  integer           :: dimx, dimy, dimz !! resolution of local grid
+  integer           :: offx, offy, offz !! offset
   ! }
 
                                                    call kutimer__start('main  ')
@@ -73,10 +74,19 @@ program main_m
     !! 音速によって決まるCFL条件が厳しくなる（つまりdtが小さくなる）
     !! ここでは初期状態における流体の状態に基づいてdtが決まる。
 
-  ! IN_SITU_VIS: Initialize
+  ! IN_SITU_VIS: Instance & Initialize
   ! {
-!  insitu_vis = InSituVis( Isosurface ) ! OrthoSlice, Isosurface, or VolumeRendering
-!  call insitu_vis % initialize()
+  !  insitu_vis = InSituVis( OrthoSlice ) ! OrthoSlice, Isosurface, or VolumeRendering
+  insitu_vis = InSituVis( Isosurface ) ! OrthoSlice, Isosurface, or VolumeRendering
+  call insitu_vis % initialize()
+  call insitu_vis % setGlobalDims( NX_GLOBAL, NY_GLOBAL, NZ_GLOBAL )
+  dimx = NXPP + 2
+  dimy = NYPP + 2
+  dimz = NZPP + 2
+  offx = NXPP * ( mod( parallel % rank % me, NPROC_X ) )
+  offy = NYPP * ( mod( parallel % rank % me, NPROC_X * NPROC_Y ) / NPROC_X )
+  offz = NZPP * ( parallel % rank % me / ( NPROC_X * NPROC_Y ) )
+  call insitu_vis % setOffset( offx, offy, offz )
   ! }
 
   do while( Job%karte == "fine" )                 ;call kutimer__count
@@ -102,8 +112,8 @@ program main_m
 
     ! IN_SITU_VIS: Put & Execute
     ! {
-!    call insitu_vis % put( fluid % pressure, NXPP, NYPP, NZPP )
-!    call insitu_vis % exec( time, job % nloop )
+    call insitu_vis % put( fluid % pressure, dimx, dimy, dimz )
+    call insitu_vis % exec( time, job % nloop )
     ! }
 
     if ( Job%nloop >= Job%nloop_end ) then
@@ -112,6 +122,11 @@ program main_m
       !! 上限値に達したらジョブを停止する。
     end if
   end do
+
+  ! IN_SITU_VIS: Finalize
+  ! {
+  call insitu_vis % finalize()
+  ! }
 
   call Job%finalize( Job%nloop, time, fluid )     !{main  }{job f}
     !! ジョブの後始末。MPI終了処理を含む。
