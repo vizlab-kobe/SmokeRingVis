@@ -78,6 +78,7 @@ program main_m
   ! {
   !  insitu_vis = InSituVis( OrthoSlice ) ! OrthoSlice, Isosurface, or VolumeRendering
   insitu_vis = InSituVis( Isosurface ) ! OrthoSlice, Isosurface, or VolumeRendering
+!  insitu_vis = InSituVis( VolumeRendering ) ! OrthoSlice, Isosurface, or VolumeRendering
   call insitu_vis % initialize()
   call insitu_vis % setGlobalDims( NX_GLOBAL, NY_GLOBAL, NZ_GLOBAL )
   dimx = NXPP + 2
