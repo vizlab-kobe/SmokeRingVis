@@ -63,7 +63,7 @@ module InSituVis_m
      subroutine C_InSituVis_setGlobalDims( this, dimx, dimy, dimz )&
           bind( C, name="InSituVis_setGlobalDims" )
        import
-       type( C_ptr ), value :: this
+       type( C_ptr ),    value :: this
        integer( C_int ), value :: dimx
        integer( C_int ), value :: dimy
        integer( C_int ), value :: dimz
@@ -72,7 +72,7 @@ module InSituVis_m
      subroutine C_InSituVis_setOffset( this, offx, offy, offz )&
           bind( C, name="InSituVis_setOffset" )
        import
-       type( C_ptr ), value :: this
+       type( C_ptr ),    value :: this
        integer( C_int ), value :: offx
        integer( C_int ), value :: offy
        integer( C_int ), value :: offz
@@ -91,8 +91,8 @@ module InSituVis_m
      subroutine C_InSituVis_exec( this, time_value, time_index )&
           bind( C, name="InSituVis_exec" )
        import
-       type( C_ptr ),     value :: this
-       real( C_double ),  value :: time_value
+       type( C_ptr ),    value :: this
+       real( C_double ), value :: time_value
        integer( C_int ), value :: time_index
      end subroutine C_InSituVis_exec
   end interface
@@ -166,7 +166,7 @@ contains
     implicit none
     class( InSituVis ), intent( in ) :: this
     real( C_double ),   intent( in ) :: time_value
-    integer( C_int ),  intent( in ) :: time_index
+    integer( C_int ),   intent( in ) :: time_index
     call C_InSituVis_exec( this % ptr, time_value, time_index )
   end subroutine InSituVis_exec
 
