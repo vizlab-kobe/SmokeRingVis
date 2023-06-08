@@ -20,17 +20,16 @@ const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 const auto Viewpoint = InSituVis::Viewpoint{ { ViewDir, ViewPos } }; // viewpoint
 } // end of namespace Params
 
-// Type definition
-using AdaptorBase = InSituVis::mpi::Adaptor;
-using Pipeline = AdaptorBase::Pipeline;
-using Screen = AdaptorBase::Screen;
-using Volume = kvs::StructuredVolumeObject;
-using Object = kvs::ObjectBase;
-
 // Adaptor
+using AdaptorBase = InSituVis::mpi::Adaptor;
 class Adaptor : public AdaptorBase
 {
+public:
     using BaseClass = AdaptorBase;
+    using Pipeline = AdaptorBase::Pipeline;
+    using Screen = AdaptorBase::Screen;
+    using Volume = kvs::StructuredVolumeObject;
+    using Object = kvs::ObjectBase;
 
 private:
     kvs::Vec3ui m_global_dims{ 0, 0, 0 };
@@ -306,7 +305,7 @@ void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz 
     const auto dims = kvs::Vec3ui( dimx, dimy, dimz );
     const auto size = size_t( dimx * dimy * dimz );
 
-    Volume volume;
+    Adaptor::Volume volume;
     volume.setVeclen( 1 );
     volume.setResolution( dims );
     volume.setValues( kvs::ValueArray<double>{ values, size } );
