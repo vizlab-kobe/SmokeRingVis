@@ -257,7 +257,7 @@ extern "C"
 
 Adaptor* InSituVis_new( const int method )
 {
-    auto vis = new Adaptor();
+    auto* vis = new Adaptor();
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
     vis->setAnalysisInterval( Params::AnalysisInterval );
