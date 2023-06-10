@@ -1,6 +1,5 @@
 module InSituVis_m
   use iso_c_binding
-  use constants_m
   implicit none
 
   ! Class definition
@@ -114,6 +113,15 @@ contains
        this % ptr = C_NULL_ptr
     endif
   end subroutine InSituVis_destroy
+
+!  subroutine InSituVis_destroy_polymorph( this )
+!    implicit none
+!    class( InSituVis ) :: this
+!    if ( c_associated( this % ptr ) ) then
+!       call C_InSituVis_delete( this % ptr )
+!       this % ptr = C_NULL_ptr
+!    endif
+!  end subroutine InSituVis_destroy
 
   subroutine InSituVis_delete( this )
     implicit none
