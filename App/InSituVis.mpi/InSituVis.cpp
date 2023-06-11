@@ -163,8 +163,8 @@ public:
             auto d = true;
 
             auto i0 = kvs::Math::Mix( min_value, max_value, 0.1 );
-            auto i1 = kvs::Math::Mix( min_value, max_value, 0.6 );
-            auto i2 = kvs::Math::Mix( min_value, max_value, 0.7 );
+            auto i1 = kvs::Math::Mix( min_value, max_value, 0.2 );
+            auto i2 = kvs::Math::Mix( min_value, max_value, 0.5 );
             auto i3 = kvs::Math::Mix( min_value, max_value, 0.9 );
             auto* o0 = new kvs::Isosurface( &volume, i0, n, d, t );
             auto* o1 = new kvs::Isosurface( &volume, i1, n, d, t );
@@ -304,6 +304,9 @@ void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz 
 {
     const auto dims = kvs::Vec3ui( dimx, dimy, dimz );
     const auto size = size_t( dimx * dimy * dimz );
+    const auto offs = self->offset();
+    const auto min_coord = kvs::Vec3{ offs };
+    const auto max_coord = kvs::Vec3{ offs + dims } - kvs::Vec3{ 1, 1, 1 };
 
     Adaptor::Volume volume;
     volume.setVeclen( 1 );
@@ -311,18 +314,8 @@ void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz 
     volume.setValues( kvs::ValueArray<double>{ values, size } );
     volume.setGridTypeToUniform();
     volume.updateMinMaxValues();
-//    volume.updateMinMaxCoords();
-//    volume.setMinMaxObjectCoords( kvs::Vec3{ offs }, kvs::Vec3{ offs + dims } );
-//    volume.setMinMaxExternalCoords( kvs::Vec3{ 0, 0, 0 }, kvs::Vec3{ self->globalDims() } - kvs::Vec3{ 1, 1, 1 } );
-
-    const auto offs = self->offset();
-    volume.setMinMaxObjectCoords( kvs::Vec3{ offs }, kvs::Vec3{ offs + dims } - kvs::Vec3{ 1, 1, 1 } );
-    volume.setMinMaxExternalCoords( kvs::Vec3{ offs }, kvs::Vec3{ offs + dims } - kvs::Vec3{ 1, 1, 1 } );
-
-//    const auto Ta = kvs::ObjectCoordinate( { 0.0f, 0.0f, 0.0f }, &volume ).toWorldCoordinate().position();
-//    const auto Tb = kvs::ObjectCoordinate( kvs::Vec3{ offs }, &volume ).toWorldCoordinate().position();
-//    const auto T = Tb - Ta; // in world coordinate
-//    volume.multiplyXform( kvs::Xform::Translation( T ) );
+    volume.setMinMaxObjectCoords( min_coord, max_coord );
+    volume.setMinMaxExternalCoords( min_coord, max_coord );
 
     self->put( volume );
 }

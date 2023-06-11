@@ -113,7 +113,8 @@ program main_m
 
     ! IN_SITU_VIS: Put & Execute
     ! {
-    call insitu_vis % put( fluid % pressure, dimx, dimy, dimz )
+    !call insitu_vis % put( fluid % pressure, dimx, dimy, dimz )
+    call insitu_vis % put( get_enstrophy( fluid ), dimx, dimy, dimz )
     call insitu_vis % exec( time, job % nloop )
     ! }
 
@@ -169,5 +170,16 @@ contains
     call mpiut__message_leader( comm, "Thermal_diffusivity",  &
                                       Params%get_double( 'Thermal_diffusivity' ) )
   end subroutine iPrint
+
+  function get_enstrophy( fluid )
+    type(fluid_t) ,intent(in) :: fluid
+    type(field__vector_t) :: vel !! 速度場（3D）
+    type(field__vector_t) :: vor ! vorticity、渦度
+    real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1) :: get_enstrophy ! 渦度の2乗
+    !    call solver__get_subfield(fluid,vel)
+    call Solver%get_subfield(fluid,vel)
+    vor = .curl. vel
+    get_enstrophy = vor .dot. vor
+  end function get_enstrophy
 
 end program main_m
