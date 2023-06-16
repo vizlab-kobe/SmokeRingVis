@@ -90,10 +90,11 @@ private:
             dummy.setMinMaxObjectCoords( min_coord, max_coord );
             dummy.setMinMaxExternalCoords( min_coord, max_coord );
 
+            const bool visible = BaseClass::isAlphaBlendingEnabled() ? false : BaseClass::world().isRoot();
             kvs::Bounds bounds( kvs::RGBColor::Black(), 2.0f );
             auto* object = bounds.outputLineObject( &dummy );
             object->setName( "Bounds" );
-            object->setVisible( BaseClass::world().isRoot() );
+            object->setVisible( visible );
             BaseClass::screen().registerObject( object );
         }
     }
@@ -188,7 +189,7 @@ public:
             else
             {
                 // Bounding box.
-                screen.registerObject( o0, new kvs::Bounds() );
+                //screen.registerObject( o0, new kvs::Bounds() );
 
                 // Register the objects with renderer.
                 auto* r0 = new kvs::glsl::PolygonRenderer();
@@ -224,7 +225,7 @@ public:
             else
             {
                 // Bounding box.
-                screen.registerObject( o, new kvs::Bounds() );
+                //screen.registerObject( o, new kvs::Bounds() );
 
                 // Setup a transfer function.
                 const auto min_value = o->minValue();
@@ -243,14 +244,15 @@ public:
                 tfunc.setRange( min_value, max_value );
 
                 // Register the objects with renderer.
-                //auto* r = new kvs::glsl::RayCastingRenderer();
-                auto* r = new kvs::RayCastingRenderer();
+                auto* r = new kvs::glsl::RayCastingRenderer();
+                //r->setShader( kvs::Shader::BlinnPhong() );
                 r->setTransferFunction( tfunc );
                 screen.registerObject( o, r );
             }
         };
     };
 };
+
 
 extern "C"
 {
@@ -261,14 +263,20 @@ Adaptor* InSituVis_new( const int method )
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
     vis->setAnalysisInterval( Params::AnalysisInterval );
-    vis->setOutputSubImageEnabled( true );
+    vis->setOutputSubImageEnabled( true, false, false ); // color, depth, alpha
     vis->setColorMap( kvs::ColorMap::CoolWarm() );
 
     switch ( method )
     {
     case 1: vis->setPipeline( Adaptor::OrthoSlice( vis ) ); break;
     case 2: vis->setPipeline( Adaptor::Isosurface( vis ) ); break;
-    case 3: vis->setPipeline( Adaptor::VolumeRendering( vis ) ); break;
+    case 3:
+    {
+        vis->screen().setBackgroundColor( kvs::RGBColor::Black() );
+        vis->setAlphaBlendingEnabled( true );
+        vis->setPipeline( Adaptor::VolumeRendering( vis ) );
+        break;
+    }
     default: break;
     }
 

@@ -37,7 +37,7 @@ program main_m
 
   real(DR) :: dt, time   !! 時間刻み幅と時刻
   type(fluid_t) :: fluid !! 流体場データの構造体
-  type(vis2d_t) :: vis2d !! 断面可視化用
+!  type(vis2d_t) :: vis2d !! 断面可視化用
 
   ! IN_SITU_VIS: Parameters
   ! {
@@ -56,11 +56,11 @@ program main_m
     !! 接続ジョブの場合はディスクからリスタートデータを読み込む。
   call iPrint                                     ;call kutimer__('main  ','iprint')
     !! 内部副プログラム。定数とパラメータを書き出す
-  call vis2d%initialize                           ;call kutimer__('main  ','vis2 i')
+!  call vis2d%initialize                           ;call kutimer__('main  ','vis2 i')
     !! 可視化モジュール（vis2d_m）の初期化。
 
   if ( Job%nloop == 0 ) then
-    call vis2d%draw( time, Job%nloop, fluid )     ;call kutimer__('main  ','vis2  ')
+!    call vis2d%draw( time, Job%nloop, fluid )     ;call kutimer__('main  ','vis2  ')
       !! シミュレーション領域の断面図をSVGフォーマットで出力する。
     call Job%diagnosis( Job%nloop, time, fluid )  ;call kutimer__('main  ','job di')
       !! solverモジュールで定義されているdiagnosis（診断）
@@ -76,17 +76,18 @@ program main_m
 
   ! IN_SITU_VIS: Instance & Initialize
   ! {
-  !  insitu_vis = InSituVis( OrthoSlice ) ! OrthoSlice, Isosurface, or VolumeRendering
-  insitu_vis = InSituVis( Isosurface ) ! OrthoSlice, Isosurface, or VolumeRendering
-!  insitu_vis = InSituVis( VolumeRendering ) ! OrthoSlice, Isosurface, or VolumeRendering
-  call insitu_vis % initialize()
-  call insitu_vis % setGlobalDims( NX_GLOBAL, NY_GLOBAL, NZ_GLOBAL )
   dimx = NXPP + 2
   dimy = NYPP + 2
   dimz = NZPP + 2
   offx = NXPP * ( mod( parallel % rank % me, NPROC_X ) )
   offy = NYPP * ( mod( parallel % rank % me, NPROC_X * NPROC_Y ) / NPROC_X )
   offz = NZPP * ( parallel % rank % me / ( NPROC_X * NPROC_Y ) )
+
+  !insitu_vis = InSituVis( OrthoSlice ) ! OrthoSlice, Isosurface, or VolumeRendering
+  insitu_vis = InSituVis( Isosurface ) ! OrthoSlice, Isosurface, or VolumeRendering
+  !insitu_vis = InSituVis( VolumeRendering ) ! OrthoSlice, Isosurface, or VolumeRendering
+  call insitu_vis % initialize()
+  call insitu_vis % setGlobalDims( NX_GLOBAL, NY_GLOBAL, NZ_GLOBAL )
   call insitu_vis % setOffset( offx, offy, offz )
   ! }
 
@@ -108,7 +109,7 @@ program main_m
       !! 毎ステップdtを精密に調整する必要はないからである。
     call Job%diagnosis( Job%nloop, time, fluid )  ;call kutimer__('main  ','job di')
       !! 診断。異常があればjob.carteにセットする。
-    call vis2d%draw( time, Job%nloop, fluid )     ;call kutimer__('main  ','vis2  ')
+!    call vis2d%draw( time, Job%nloop, fluid )     ;call kutimer__('main  ','vis2  ')
       !! シミュレーション領域の断面図をSVGで出力する。
 
     ! IN_SITU_VIS: Put & Execute
@@ -176,7 +177,6 @@ contains
     type(field__vector_t) :: vel !! 速度場（3D）
     type(field__vector_t) :: vor ! vorticity、渦度
     real(DR), dimension(0:NXPP1,0:NYPP1,0:NZPP1) :: get_enstrophy ! 渦度の2乗
-    !    call solver__get_subfield(fluid,vel)
     call Solver%get_subfield(fluid,vel)
     vor = .curl. vel
     get_enstrophy = vor .dot. vor
