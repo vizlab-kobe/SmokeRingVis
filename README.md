@@ -126,4 +126,4 @@ InSituVis, which is a in-situ visualization framework based on KVS, is required.
     ```
     $ ./clean.sh
     ```
-    - Note: This command will forcely delete the output directory ("Output") in which the rendered images are stored. If the rendering images need to be saved, move this directory to another location or rename it before executing this command.
+    - Note: This command will force the deletion of the output directory ("Output") in which the rendered images are stored. If the rendering images need to be saved, move this directory to another location or rename it before executing this command.
