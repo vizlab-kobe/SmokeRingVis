@@ -1,5 +1,5 @@
 # SmokeRingVis
-In-situ visualization for a simple CFD simulation ([smoke-ring](https://github.com/akageyama/smoke-ring)).
+SmokeRingVis provides several in-situ visualization applications for a simple CFD simulation ([smoke-ring](https://github.com/akageyama/smoke-ring)).
 
 ## Installation
 
