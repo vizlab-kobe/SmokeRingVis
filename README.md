@@ -52,7 +52,7 @@ KVS supports OSMesa and MPI needs to be installed.
     ```
 
 #### InSituVis
-InSituVis, which is a in-situ visualization framework based on KVS, is required.
+InSituVis, which is an in-situ visualization framework based on KVS, is required.
 
 1. Get the InSituVis source codes from the GitHub repository as follows:
     ```
