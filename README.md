@@ -87,7 +87,7 @@ InSituVis, which is an in-situ visualization framework based on KVS, is required
     $ ./make.sh
     $ ./run.sh
     ```
-    - The following variables in the make.sh file can be used to specify the number of processes along each axis of computational space and the number of grid points for each axis in each process. 
+    - The following variables in make.sh can be used to specify the number of processes along each axis of computational space and the number of grid points for each axis in each process. 
       ```
       NPROC_X=3
       NPROC_Y=2
@@ -105,11 +105,11 @@ InSituVis, which is an in-situ visualization framework based on KVS, is required
       &data04  Viscous_diffusivity = 3.0e-2    /
       &data05  Thermal_diffusivity = 3.0e-2    /
       ```
-    - The visualization method can be changed by modifying the following parameter in the main.f90 file.
+    - The visualization method can be changed by modifying the following parameter in main.f90.
       ```fortran
       80:  insitu_vis = InSituVis( Isosurface ) ! OrthoSlice, Isosurface, or VolumeRendering
       ```
-    - Several visualization parameters can be specified by modifying the following parameter in the InSituVis.cpp file.
+    - Several visualization parameters can be specified by modifying the following parameter in InSituVis.cpp.
       ```cpp
       13: // Parameters
       14: namespace Params
