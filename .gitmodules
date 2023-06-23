@@ -1,6 +1,0 @@
-[submodule "Lib.smoke_ring_m.mpi/smoke-ring"]
-	path = Lib.smoke_ring_m.mpi/smoke-ring
-	url = https://github.com/akageyama/smoke-ring.git
-[submodule "Lib.smoke_ring_m.mpi/slice-svg"]
-	path = Lib.smoke_ring_m.mpi/slice-svg
-	url = https://github.com/akageyama/slice-svg.git
