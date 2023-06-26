@@ -10,5 +10,5 @@ module smoke_ring_m
   use params_m     !! パラメータ
   use solver_m     !! ナビエ・ストークス方程式ソルバ
   use ut_m         !! ユーティリティ
-  use vis2d_m      !! 断面可視化
+!  use vis2d_m      !! 断面可視化
 end module smoke_ring_m
