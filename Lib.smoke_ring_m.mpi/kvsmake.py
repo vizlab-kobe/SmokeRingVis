@@ -84,10 +84,10 @@ if __name__=='__main__':
     argc = len( sys.argv )
     argv = sys.argv
     if   argc == 1:
-        #MakeSliceSVG( 'build' )
+        MakeSliceSVG( 'build' )
         MakeSmokeRing( 'build' )
         KVSMake( 'build' )
     elif argc == 2:
-        #MakeSliceSVG( argv[1] )
+        MakeSliceSVG( argv[1] )
         MakeSmokeRing( argv[1] )
         KVSMake( argv[1] )
