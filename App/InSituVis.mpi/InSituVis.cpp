@@ -257,9 +257,14 @@ public:
 extern "C"
 {
 
-Adaptor* InSituVis_new( const int method )
+typedef struct { Adaptor impl; } AdaptorImpl;
+
+//Adaptor* InSituVis_new( const int method )
+AdaptorImpl* InSituVis_new( const int method )
 {
     auto* vis = new Adaptor();
+    vis->log() << "InSituVis_new" << std::endl;
+
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
     vis->setAnalysisInterval( Params::AnalysisInterval );
@@ -280,39 +285,52 @@ Adaptor* InSituVis_new( const int method )
     default: break;
     }
 
-    return vis;
+//    return vis;
+    return (AdaptorImpl*)vis;
 }
 
-void InSituVis_delete( Adaptor* self )
+//void InSituVis_delete( Adaptor* self )
+void InSituVis_delete( AdaptorImpl* self )
 {
+    self->impl.log() << "InSituVis_delete" << std::endl;
     if ( self ) delete self;
 }
 
-void InSituVis_initialize( Adaptor* self )
+//void InSituVis_initialize( Adaptor* self )
+void InSituVis_initialize( AdaptorImpl* self )
 {
-    self->initialize();
+    self->impl.log() << "InSituVis_initialize" << std::endl;
+    self->impl.initialize();
 }
 
-void InSituVis_finalize( Adaptor* self )
+//void InSituVis_finalize( Adaptor* self )
+void InSituVis_finalize( AdaptorImpl* self )
 {
-    self->finalize();
+    self->impl.log() << "InSituVis_finalize" << std::endl;
+    self->impl.finalize();
 }
 
-void InSituVis_setGlobalDims( Adaptor* self, int dimx, int dimy, int dimz )
+//void InSituVis_setGlobalDims( Adaptor* self, int dimx, int dimy, int dimz )
+void InSituVis_setGlobalDims( AdaptorImpl* self, int dimx, int dimy, int dimz )
 {
-    self->setGlobalDims( kvs::Vec3ui( dimx, dimy, dimz ) );
+    self->impl.log() << "InSituVis_setGlobalDims" << std::endl;
+    self->impl.setGlobalDims( kvs::Vec3ui( dimx, dimy, dimz ) );
 }
 
-void InSituVis_setOffset( Adaptor* self, int offx, int offy, int offz )
+//void InSituVis_setOffset( Adaptor* self, int offx, int offy, int offz )
+void InSituVis_setOffset( AdaptorImpl* self, int offx, int offy, int offz )
 {
-    self->setOffset( kvs::Vec3ui( offx, offy, offz ) );
+    self->impl.log() << "InSituVis_setOffset" << std::endl;
+    self->impl.setOffset( kvs::Vec3ui( offx, offy, offz ) );
 }
 
-void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz )
+//void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz )
+void InSituVis_put( AdaptorImpl* self, double* values, int dimx, int dimy, int dimz )
 {
+    self->impl.log() << "InSituVis_put" << std::endl;
     const auto dims = kvs::Vec3ui( dimx, dimy, dimz );
     const auto size = size_t( dimx * dimy * dimz );
-    const auto offs = self->offset();
+    const auto offs = self->impl.offset();
     const auto min_coord = kvs::Vec3{ offs };
     const auto max_coord = kvs::Vec3{ offs + dims } - kvs::Vec3{ 1, 1, 1 };
 
@@ -325,12 +343,15 @@ void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz 
     volume.setMinMaxObjectCoords( min_coord, max_coord );
     volume.setMinMaxExternalCoords( min_coord, max_coord );
 
-    self->put( volume );
+//    self->put( volume );
+    self->impl.put( volume );
 }
 
-void InSituVis_exec( Adaptor* self, double time_value, int time_index )
+//void InSituVis_exec( Adaptor* self, double time_value, int time_index )
+void InSituVis_exec( AdaptorImpl* self, double time_value, int time_index )
 {
-    self->exec( { float( time_value ), size_t( time_index ) } );
+    self->impl.log() << "InSituVis_exec" << std::endl;
+    self->impl.exec( { float( time_value ), size_t( time_index ) } );
 }
 
 } // end of extern "C"
