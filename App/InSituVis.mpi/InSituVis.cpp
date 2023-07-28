@@ -292,42 +292,42 @@ AdaptorImpl* InSituVis_new( const int method )
 //void InSituVis_delete( Adaptor* self )
 void InSituVis_delete( AdaptorImpl* self )
 {
-    self->impl.log() << "InSituVis_delete" << std::endl;
+//    self->impl.log() << "InSituVis_delete" << std::endl;
     if ( self ) delete self;
 }
 
 //void InSituVis_initialize( Adaptor* self )
 void InSituVis_initialize( AdaptorImpl* self )
 {
-    self->impl.log() << "InSituVis_initialize" << std::endl;
+//    self->impl.log() << "InSituVis_initialize" << std::endl;
     self->impl.initialize();
 }
 
 //void InSituVis_finalize( Adaptor* self )
 void InSituVis_finalize( AdaptorImpl* self )
 {
-    self->impl.log() << "InSituVis_finalize" << std::endl;
+//    self->impl.log() << "InSituVis_finalize" << std::endl;
     self->impl.finalize();
 }
 
 //void InSituVis_setGlobalDims( Adaptor* self, int dimx, int dimy, int dimz )
 void InSituVis_setGlobalDims( AdaptorImpl* self, int dimx, int dimy, int dimz )
 {
-    self->impl.log() << "InSituVis_setGlobalDims" << std::endl;
+//    self->impl.log() << "InSituVis_setGlobalDims" << std::endl;
     self->impl.setGlobalDims( kvs::Vec3ui( dimx, dimy, dimz ) );
 }
 
 //void InSituVis_setOffset( Adaptor* self, int offx, int offy, int offz )
 void InSituVis_setOffset( AdaptorImpl* self, int offx, int offy, int offz )
 {
-    self->impl.log() << "InSituVis_setOffset" << std::endl;
+//    self->impl.log() << "InSituVis_setOffset" << std::endl;
     self->impl.setOffset( kvs::Vec3ui( offx, offy, offz ) );
 }
 
 //void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz )
 void InSituVis_put( AdaptorImpl* self, double* values, int dimx, int dimy, int dimz )
 {
-    self->impl.log() << "InSituVis_put" << std::endl;
+//    self->impl.log() << "InSituVis_put" << std::endl;
     const auto dims = kvs::Vec3ui( dimx, dimy, dimz );
     const auto size = size_t( dimx * dimy * dimz );
     const auto offs = self->impl.offset();
@@ -350,7 +350,7 @@ void InSituVis_put( AdaptorImpl* self, double* values, int dimx, int dimy, int d
 //void InSituVis_exec( Adaptor* self, double time_value, int time_index )
 void InSituVis_exec( AdaptorImpl* self, double time_value, int time_index )
 {
-    self->impl.log() << "InSituVis_exec" << std::endl;
+//    self->impl.log() << "InSituVis_exec" << std::endl;
     self->impl.exec( { float( time_value ), size_t( time_index ) } );
 }
 
