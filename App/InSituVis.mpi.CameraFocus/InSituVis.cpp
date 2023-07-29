@@ -43,9 +43,9 @@ const auto Pos = [] ( const float r )
 {
     const auto tht = kvs::Math::pi / 4.0f;
     const auto phi = kvs::Math::pi / 4.0f;
-    const auto x = r * std::sin( tht ) * std::sin( phi );
-    const auto y = r * std::cos( tht );
-    const auto z = r * std::sin( tht ) * std::cos( phi );
+    const auto x = static_cast<float>( r * std::sin( tht ) * std::sin( phi ) );
+    const auto y = static_cast<float>( r * std::cos( tht ) );
+    const auto z = static_cast<float>( r * std::sin( tht ) * std::cos( phi ) );
     return kvs::Vec3{ x, y, z };
 };
 
@@ -75,7 +75,7 @@ const auto ViewPos = Pos( ViewRad ); // viewpoint position
 const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 }; // viewpoint dimension
 kvs::Vec3 m_base_position = {0.0f,12.0f,0.0f};
-auto xyz_to_rtp = [&] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
+auto xyz_to_rtp = [] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
     const float x = xyz[0];
     const float y = xyz[1];
     const float z = xyz[2];
@@ -85,7 +85,7 @@ auto xyz_to_rtp = [&] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
     return kvs::Vec3( r, t, p );
 };
 
-auto calc_rotation = [&] ( const kvs::Vec3& xyz ) -> kvs::Quaternion {
+auto calc_rotation = [] ( const kvs::Vec3& xyz ) -> kvs::Quaternion {
     const auto rtp = xyz_to_rtp( xyz );
     const float phi = rtp[2];
     const auto axis = kvs::Vec3( { 0.0f, 1.0f, 0.0f } );
