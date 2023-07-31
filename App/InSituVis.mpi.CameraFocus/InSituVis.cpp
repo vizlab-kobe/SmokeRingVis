@@ -15,6 +15,7 @@
 #include <InSituVis/Lib/PolyhedralViewpoint.h>
 #include <InSituVis/Lib/StochasticRenderingAdaptor.h>
 #include <InSituVis/Lib/CameraFocusControlledAdaptor_mpi.h>
+//#include <InSituVis/Lib/CFCA.h>
 
 /*****************************************************************************/
 // In-situ visualization settings
@@ -38,14 +39,16 @@
 //#define IN_SITU_VIS__VIEWPOINT__MULTIPLE_SPHERICAL
 //#define IN_SITU_VIS__VIEWPOINT__MULTIPLE_POLYHEDRAL
 
+//using AdaptorBase = InSituVis::mpi::CFCA;
+using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
 
 const auto Pos = [] ( const float r )
 {
     const auto tht = kvs::Math::pi / 4.0f;
     const auto phi = kvs::Math::pi / 4.0f;
-    const auto x = static_cast<float>( r * std::sin( tht ) * std::sin( phi ) );
-    const auto y = static_cast<float>( r * std::cos( tht ) );
-    const auto z = static_cast<float>( r * std::sin( tht ) * std::cos( phi ) );
+    const auto x = r * std::sin( tht ) * std::sin( phi );
+    const auto y = r * std::cos( tht );
+    const auto z = r * std::sin( tht ) * std::cos( phi );
     return kvs::Vec3{ x, y, z };
 };
 
@@ -62,20 +65,22 @@ namespace Params
     static const auto SubImageAlpha = false;
     static const auto Entropies = true;
     static const auto FrameEntropies = true;
-
+    
 };
 const auto VisibleBoundingBox = true;
 const auto VisibleBoundaryMesh = false;
+const auto kotei = false;
 
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
-const auto AnalysisInterval = 10; // analysis (visuaization) time interval
+const auto AnalysisInterval = 20; // analysis (visuaization) time interval
 //onst auto ViewPos = kvs::Vec3{ 7, 5, 6 }; // viewpoint position
 const auto ViewRad = 12.0f; // viewpoint radius
-const auto ViewPos = Pos( ViewRad ); // viewpoint position
+//const auto ViewPos = Pos( ViewRad ); // viewpoint position
+const auto ViewPos = kvs::Vec3{-3.0f,0.6f,1.8f}; // viewpoint position
 const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 }; // viewpoint dimension
 kvs::Vec3 m_base_position = {0.0f,12.0f,0.0f};
-auto xyz_to_rtp = [] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
+auto xyz_to_rtp = [&] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
     const float x = xyz[0];
     const float y = xyz[1];
     const float z = xyz[2];
@@ -85,7 +90,7 @@ auto xyz_to_rtp = [] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
     return kvs::Vec3( r, t, p );
 };
 
-auto calc_rotation = [] ( const kvs::Vec3& xyz ) -> kvs::Quaternion {
+auto calc_rotation = [&] ( const kvs::Vec3& xyz ) -> kvs::Quaternion {
     const auto rtp = xyz_to_rtp( xyz );
     const float phi = rtp[2];
     const auto axis = kvs::Vec3( { 0.0f, 1.0f, 0.0f } );
@@ -100,14 +105,14 @@ const auto ViewpointPolyhedral = InSituVis::PolyhedralViewpoint{ ViewDim, ViewDi
 
 // For IN_SITU_VIS__ADAPTOR__CAMERA_FOCUS_CONTROLL
 const auto ZoomLevel = 1;
-const auto FrameDivs = kvs::Vec2ui{ 40, 40 };
-const auto EntropyInterval = 30; // L: entropy calculation time interval
+const auto FrameDivs = kvs::Vec2ui{ 5, 5 };
+const auto EntropyInterval = 1; // L: entropy calculation time interval
 //const auto EntropyInterval = 2; // L: entropy calculation time interval
 const auto MixedRatio = 0.5f; // mixed entropy ratio
 //const auto MixedRatio = 0.75f; // mixed entropy ratio
-auto LightEnt = InSituVis::mpi::CameraFocusControlledAdaptor::LightnessEntropy();
-auto DepthEnt = InSituVis::mpi::CameraFocusControlledAdaptor::DepthEntropy();
-auto MixedEnt = InSituVis::mpi::CameraFocusControlledAdaptor::MixedEntropy( LightEnt, DepthEnt, MixedRatio );
+auto LightEnt = AdaptorBase::LightnessEntropy();
+auto DepthEnt = AdaptorBase::DepthEntropy();
+auto MixedEnt = AdaptorBase::MixedEntropy( LightEnt, DepthEnt, MixedRatio );
 
 // Entropy function
 auto EntropyFunction = MixedEnt;
@@ -115,7 +120,7 @@ auto EntropyFunction = MixedEnt;
 //auto EntropyFunction = DepthEnt;
 
 // Path interpolator
-auto Interpolator = InSituVis::mpi::CameraFocusControlledAdaptor::Squad();
+auto Interpolator = AdaptorBase::Squad();
 //auto Interpolator = ::Adaptor::Slerp();
 
 // For IN_SITU_VIS__ADAPTOR__STOCHASTIC_RENDERING
@@ -124,7 +129,8 @@ const auto BoundaryMeshOpacity = 30; // opacity value [0-255] of boundary mesh
 } // end of namespace Params
 
 // Adaptor
-using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
+//using AdaptorBase = InSituVis::mpi::CFCA;
+//using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor
 class Adaptor : public AdaptorBase
 {
 public:
@@ -157,6 +163,129 @@ public:
         this->set_global_bounds();
         BaseClass::exec( sim_time );
     }
+    void execRendering()
+    {
+        if ( !Params::VisibleBoundaryMesh && !Params::VisibleBoundingBox )
+        {
+            BaseClass::execRendering();
+            return;
+        }
+
+        auto* mesh = kvs::PolygonObject::DownCast( BaseClass::screen().scene()->object( "BoundaryMesh" ) );
+        if ( mesh && Params::VisibleBoundaryMesh ) { mesh->setVisible( false ); }
+
+        auto* bbox = kvs::LineObject::DownCast( BaseClass::screen().scene()->object( "BoundingBox" ) );
+        if ( bbox && Params::VisibleBoundingBox ) { bbox->setVisible( false ); }
+
+        BaseClass::execRendering();
+
+        const bool visible = BaseClass::world().isRoot();
+        if ( mesh ) { mesh->setVisible( visible && Params::VisibleBoundaryMesh ); }
+        if ( bbox ) { bbox->setVisible( visible && Params::VisibleBoundingBox ); }
+
+        /*if ( BaseClass::isEntropyStep() )
+        {
+            const auto index = BaseClass::maxIndex();
+            const auto focus = BaseClass::maxFocusPoint();
+            auto location = BaseClass::viewpoint().at( index );
+            //add
+            auto bestlocation = BaseClass::focusedLocation( location , focus );
+            bestlocation.position = BaseClass::bestLocationPosition();
+            bestlocation.rotation = BaseClass::maxRotation();
+            //auto location = BaseClass::bestLocation();
+
+            const auto level = BaseClass::bestZoomLevel();
+            auto frame_buffer = BaseClass::readback( bestlocation );
+            // Output the rendering images and the heatmap of entropies.
+            if ( BaseClass::world().isRoot() )
+            {
+                if ( BaseClass::isOutputImageEnabled() )
+                {
+                    BaseClass::outputColorImage( bestlocation, frame_buffer, level );
+                }
+            }
+        }
+        else
+        {
+            const auto focus = BaseClass::erpFocus();
+            auto location = BaseClass::erpLocation( focus );
+            //location.position = BaseClass::bestLocationPosition();
+            //auto bestlocation = BaseClass::erpLocation( focus );
+            //auto location = BaseClass::bestLocation();
+            const auto level = BaseClass::bestZoomLevel();
+            auto frame_buffer = BaseClass::readback( location );
+
+            // Output the rendering images and the heatmap of entropies.
+            if ( BaseClass::world().isRoot() )
+            {
+                if ( BaseClass::isOutputImageEnabled() )
+                {
+                    BaseClass::outputColorImage( location, frame_buffer, level );
+                }
+            }
+        }*/
+        
+        if ( BaseClass::isEntropyStep() )
+        {
+            const auto index = BaseClass::maxIndex();
+            const auto focus = BaseClass::maxFocusPoint();
+            auto location = BaseClass::focusedLocation( BaseClass::viewpoint().at( index ), focus );
+
+            const auto zoom_level = BaseClass::zoomLevel();
+            const auto p = location.position;
+            for ( size_t level = 0; level < zoom_level; level++ )
+            {
+                auto t = static_cast<float>( level ) / static_cast<float>( zoom_level );
+                location.position = ( 1 - t ) * p + t * focus;
+                //注視点を固定させたい時
+                if(Params::kotei == true){
+                location.look_at = {0,0,0};
+                location.up_vector = {0,1,0};
+                }
+                auto frame_buffer = BaseClass::readback( location );
+
+                // Output the rendering images and the heatmap of entropies.
+                if ( BaseClass::world().isRoot() )
+                {
+                    if ( BaseClass::isOutputImageEnabled() )
+                    {
+                        BaseClass::outputColorImage( location, frame_buffer, level );
+                        //BaseClass::outputDepthImage( location, frame_buffer, level );
+                    }
+                }
+            }
+        }
+        else
+        {
+            const auto focus = BaseClass::maxFocusPoint();
+            auto location = BaseClass::erpLocation( focus );
+
+            const auto zoom_level = BaseClass::zoomLevel();
+            const auto p = location.position;
+            for ( size_t level = 0; level < zoom_level; level++ )
+            {
+                auto t = static_cast<float>( level ) / static_cast<float>( zoom_level );
+                location.position = ( 1 - t ) * p + t * focus;
+                //注視点を固定させたい時
+                if(Params::kotei == true){
+                location.look_at = {0,0,0};
+                location.up_vector = {0,1,0};
+                }
+                auto frame_buffer = BaseClass::readback( location );
+
+                // Output the rendering images and the heatmap of entropies.
+                if ( BaseClass::world().isRoot() )
+                {
+                    if ( BaseClass::isOutputImageEnabled() )
+                    {
+                        BaseClass::outputColorImage( location, frame_buffer, level );
+                        //BaseClass::outputDepthImage( location, frame_buffer, level );
+                    }
+                }
+            }
+        }
+    }
+    
     void setFinalTimeStepIndex( size_t index )
     {
         m_final_time_step_index = index;
@@ -274,17 +403,17 @@ public:
             auto d = true;
 
             auto i0 = kvs::Math::Mix( min_value, max_value, 0.1 );
-            auto i1 = kvs::Math::Mix( min_value, max_value, 0.2 );
-            auto i2 = kvs::Math::Mix( min_value, max_value, 0.5 );
-            auto i3 = kvs::Math::Mix( min_value, max_value, 0.9 );
+            //auto i1 = kvs::Math::Mix( min_value, max_value, 0.2 );
+            //auto i2 = kvs::Math::Mix( min_value, max_value, 0.5 );
+            //auto i3 = kvs::Math::Mix( min_value, max_value, 0.9 );
             auto* o0 = new kvs::Isosurface( &volume, i0, n, d, t );
-            auto* o1 = new kvs::Isosurface( &volume, i1, n, d, t );
-            auto* o2 = new kvs::Isosurface( &volume, i2, n, d, t );
-            auto* o3 = new kvs::Isosurface( &volume, i3, n, d, t );
+            //auto* o1 = new kvs::Isosurface( &volume, i1, n, d, t );
+            //auto* o2 = new kvs::Isosurface( &volume, i2, n, d, t );
+            //auto* o3 = new kvs::Isosurface( &volume, i3, n, d, t );
             o0->setName( "Isosurface0" );
-            o1->setName( "Isosurface1" );
-            o2->setName( "Isosurface2" );
-            o3->setName( "Isosurface3" );
+            //o1->setName( "Isosurface1" );
+            //o2->setName( "Isosurface2" );
+            //o3->setName( "Isosurface3" );
 
             // Register object and renderer to screen
             kvs::Light::SetModelTwoSide( true );
@@ -292,9 +421,9 @@ public:
             {
                 // Update the objects.
                 screen.scene()->replaceObject( "Isosurface0", o0 );
-                screen.scene()->replaceObject( "Isosurface1", o1 );
-                screen.scene()->replaceObject( "Isosurface2", o2 );
-                screen.scene()->replaceObject( "Isosurface3", o3 );
+                //screen.scene()->replaceObject( "Isosurface1", o1 );
+                //screen.scene()->replaceObject( "Isosurface2", o2 );
+                //screen.scene()->replaceObject( "Isosurface3", o3 );
             }
             else
             {
@@ -303,17 +432,17 @@ public:
 
                 // Register the objects with renderer.
                 auto* r0 = new kvs::glsl::PolygonRenderer();
-                auto* r1 = new kvs::glsl::PolygonRenderer();
-                auto* r2 = new kvs::glsl::PolygonRenderer();
-                auto* r3 = new kvs::glsl::PolygonRenderer();
+                //auto* r1 = new kvs::glsl::PolygonRenderer();
+                //auto* r2 = new kvs::glsl::PolygonRenderer();
+                //auto* r3 = new kvs::glsl::PolygonRenderer();
                 r0->setTwoSideLightingEnabled( true );
-                r1->setTwoSideLightingEnabled( true );
-                r2->setTwoSideLightingEnabled( true );
-                r3->setTwoSideLightingEnabled( true );
+                //r1->setTwoSideLightingEnabled( true );
+                //r2->setTwoSideLightingEnabled( true );
+                //r3->setTwoSideLightingEnabled( true );
                 screen.registerObject( o0, r0 );
-                screen.registerObject( o1, r1 );
-                screen.registerObject( o2, r2 );
-                screen.registerObject( o3, r3 );
+                //screen.registerObject( o1, r1 );
+                //screen.registerObject( o2, r2 );
+                //screen.registerObject( o3, r3 );
             }
         };
     };
@@ -376,6 +505,7 @@ Adaptor* InSituVis_new( const int method )
     vis->setOutputSubImageEnabled( true, false, false ); // color, depth, alpha
     vis->setColorMap( kvs::ColorMap::CoolWarm() );
     vis->setOutputEntropiesEnabled( Params::Output::Entropies );
+    vis->setOutputFrameEntropiesEnabled( Params::Output::FrameEntropies );
     /*vis->setOutputEvaluationImageEnabled(
         Params::Output::EvalImage,
         Params::Output::EvalImageDepth );*/
@@ -461,3 +591,4 @@ void InSituVis_exec( Adaptor* self, double time_value, int time_index )
 }
 
 } // end of extern "C"
+
