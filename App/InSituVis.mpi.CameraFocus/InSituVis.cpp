@@ -46,9 +46,9 @@ const auto Pos = [] ( const float r )
 {
     const auto tht = kvs::Math::pi / 4.0f;
     const auto phi = kvs::Math::pi / 4.0f;
-    const auto x = r * std::sin( tht ) * std::sin( phi );
-    const auto y = r * std::cos( tht );
-    const auto z = r * std::sin( tht ) * std::cos( phi );
+    const auto x = static_cast<float>( r * std::sin( tht ) * std::sin( phi ) );
+    const auto y = static_cast<float>( r * std::cos( tht ) );
+    const auto z = static_cast<float>( r * std::sin( tht ) * std::cos( phi ) );
     return kvs::Vec3{ x, y, z };
 };
 
@@ -68,11 +68,11 @@ namespace Params
     
 };
 const auto VisibleBoundingBox = true;
-const auto VisibleBoundaryMesh = false;
+//const auto VisibleBoundaryMesh = false;
 const auto kotei = false;
 
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
-const auto AnalysisInterval = 20; // analysis (visuaization) time interval
+const auto AnalysisInterval = 10; // analysis (visuaization) time interval
 //onst auto ViewPos = kvs::Vec3{ 7, 5, 6 }; // viewpoint position
 const auto ViewRad = 12.0f; // viewpoint radius
 //const auto ViewPos = Pos( ViewRad ); // viewpoint position
@@ -80,7 +80,7 @@ const auto ViewPos = kvs::Vec3{-3.0f,0.6f,1.8f}; // viewpoint position
 const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 }; // viewpoint dimension
 kvs::Vec3 m_base_position = {0.0f,12.0f,0.0f};
-auto xyz_to_rtp = [&] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
+auto xyz_to_rtp = [] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
     const float x = xyz[0];
     const float y = xyz[1];
     const float z = xyz[2];
@@ -90,7 +90,7 @@ auto xyz_to_rtp = [&] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
     return kvs::Vec3( r, t, p );
 };
 
-auto calc_rotation = [&] ( const kvs::Vec3& xyz ) -> kvs::Quaternion {
+auto calc_rotation = [] ( const kvs::Vec3& xyz ) -> kvs::Quaternion {
     const auto rtp = xyz_to_rtp( xyz );
     const float phi = rtp[2];
     const auto axis = kvs::Vec3( { 0.0f, 1.0f, 0.0f } );
@@ -104,8 +104,8 @@ const auto ViewpointSpherical = InSituVis::SphericalViewpoint{ ViewDim, ViewDir 
 const auto ViewpointPolyhedral = InSituVis::PolyhedralViewpoint{ ViewDim, ViewDir };
 
 // For IN_SITU_VIS__ADAPTOR__CAMERA_FOCUS_CONTROLL
-const auto ZoomLevel = 1;
-const auto FrameDivs = kvs::Vec2ui{ 5, 5 };
+const auto ZoomLevel = 5;
+const auto FrameDivs = kvs::Vec2ui{ 10, 10 };
 const auto EntropyInterval = 1; // L: entropy calculation time interval
 //const auto EntropyInterval = 2; // L: entropy calculation time interval
 const auto MixedRatio = 0.5f; // mixed entropy ratio
@@ -149,9 +149,9 @@ public:
     Adaptor() = default;
     virtual ~Adaptor() = default;
 
-    const kvs::Vec3ui& globalDims() const { return m_global_dims; }
-    const kvs::Vec3ui& offset() const { return m_offset; }
-    const kvs::ColorMap& colorMap() const { return m_cmap; }
+    const kvs::Vec3ui globalDims() const { return m_global_dims; }
+    const kvs::Vec3ui offset() const { return m_offset; }
+    const kvs::ColorMap colorMap() const { return m_cmap; }
 
     void setGlobalDims( const kvs::Vec3ui& dims ) { m_global_dims = dims; }
     void setOffset( const kvs::Vec3ui& offs ) { m_offset = offs; }
@@ -165,14 +165,19 @@ public:
     }
     void execRendering()
     {
-        if ( !Params::VisibleBoundaryMesh && !Params::VisibleBoundingBox )
+        /*if ( !Params::VisibleBoundaryMesh && !Params::VisibleBoundingBox )
+        {
+            BaseClass::execRendering();
+            return;
+        }*/
+        if ( !Params::VisibleBoundingBox)
         {
             BaseClass::execRendering();
             return;
         }
 
-        auto* mesh = kvs::PolygonObject::DownCast( BaseClass::screen().scene()->object( "BoundaryMesh" ) );
-        if ( mesh && Params::VisibleBoundaryMesh ) { mesh->setVisible( false ); }
+        //auto* mesh = kvs::PolygonObject::DownCast( BaseClass::screen().scene()->object( "BoundaryMesh" ) );
+        //if ( mesh && Params::VisibleBoundaryMesh ) { mesh->setVisible( false ); }
 
         auto* bbox = kvs::LineObject::DownCast( BaseClass::screen().scene()->object( "BoundingBox" ) );
         if ( bbox && Params::VisibleBoundingBox ) { bbox->setVisible( false ); }
@@ -180,7 +185,7 @@ public:
         BaseClass::execRendering();
 
         const bool visible = BaseClass::world().isRoot();
-        if ( mesh ) { mesh->setVisible( visible && Params::VisibleBoundaryMesh ); }
+        //if ( mesh ) { mesh->setVisible( visible && Params::VisibleBoundaryMesh ); }
         if ( bbox ) { bbox->setVisible( visible && Params::VisibleBoundingBox ); }
 
         /*if ( BaseClass::isEntropyStep() )
