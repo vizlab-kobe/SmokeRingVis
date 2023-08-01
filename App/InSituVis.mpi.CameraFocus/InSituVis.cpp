@@ -14,8 +14,8 @@
 #include <InSituVis/Lib/SphericalViewpoint.h>
 #include <InSituVis/Lib/PolyhedralViewpoint.h>
 #include <InSituVis/Lib/StochasticRenderingAdaptor.h>
-#include <InSituVis/Lib/CameraFocusControlledAdaptor_mpi.h>
-//#include <InSituVis/Lib/CFCA.h>
+//#include <InSituVis/Lib/CameraFocusControlledAdaptor_mpi.h>
+#include <InSituVis/Lib/CFCA.h>
 
 /*****************************************************************************/
 // In-situ visualization settings
@@ -39,8 +39,8 @@
 //#define IN_SITU_VIS__VIEWPOINT__MULTIPLE_SPHERICAL
 //#define IN_SITU_VIS__VIEWPOINT__MULTIPLE_POLYHEDRAL
 
-//using AdaptorBase = InSituVis::mpi::CFCA;
-using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
+using AdaptorBase = InSituVis::mpi::CFCA;
+//using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
 
 const auto Pos = [] ( const float r )
 {
@@ -188,7 +188,7 @@ public:
         //if ( mesh ) { mesh->setVisible( visible && Params::VisibleBoundaryMesh ); }
         if ( bbox ) { bbox->setVisible( visible && Params::VisibleBoundingBox ); }
 
-        /*if ( BaseClass::isEntropyStep() )
+        if ( BaseClass::isEntropyStep() )
         {
             const auto index = BaseClass::maxIndex();
             const auto focus = BaseClass::maxFocusPoint();
@@ -228,9 +228,9 @@ public:
                     BaseClass::outputColorImage( location, frame_buffer, level );
                 }
             }
-        }*/
+        }
         
-        if ( BaseClass::isEntropyStep() )
+        /*if ( BaseClass::isEntropyStep() )
         {
             const auto index = BaseClass::maxIndex();
             const auto focus = BaseClass::maxFocusPoint();
@@ -288,7 +288,7 @@ public:
                     }
                 }
             }
-        }
+        }*/
     }
     
     void setFinalTimeStepIndex( size_t index )
