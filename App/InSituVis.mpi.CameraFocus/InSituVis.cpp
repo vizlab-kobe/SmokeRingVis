@@ -39,10 +39,11 @@
 //#define IN_SITU_VIS__VIEWPOINT__MULTIPLE_SPHERICAL
 //#define IN_SITU_VIS__VIEWPOINT__MULTIPLE_POLYHEDRAL
 
+// Base adaptor
 using AdaptorBase = InSituVis::mpi::CFCA;
-//using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
+//using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor
 
-const auto Pos = [] ( const float r )
+inline const kvs::Vec3 Pos( const float r )
 {
     const auto tht = kvs::Math::pi / 4.0f;
     const auto phi = kvs::Math::pi / 4.0f;
@@ -52,12 +53,32 @@ const auto Pos = [] ( const float r )
     return kvs::Vec3{ x, y, z };
 };
 
+inline kvs::Quaternion Rot( const kvs::Vec3& base, const kvs::Vec3& xyz )
+{
+    auto xyz_to_rtp = [] ( const kvs::Vec3& m )
+    {
+        const float x = m[0];
+        const float y = m[1];
+        const float z = m[2];
+        const float r = sqrt( x * x + y * y + z * z );
+        const float t = std::acos( y / r );
+        const float p = std::atan2( x, z );
+        return kvs::Vec3( r, t, p );
+    };
+
+    const auto rtp = xyz_to_rtp( xyz );
+    const float phi = rtp[2];
+    const auto axis = kvs::Vec3( { 0.0f, 1.0f, 0.0f } );
+    const auto q_phi = kvs::Quaternion( axis, phi );
+    const auto q_theta = kvs::Quaternion::RotationQuaternion( base, xyz );
+    return q_theta * q_phi;
+};
 
 // Parameters
 namespace Params
 {
 
-    struct Output
+struct Output
 {
     static const auto Image = true;
     static const auto SubImage = false;
@@ -65,41 +86,21 @@ namespace Params
     static const auto SubImageAlpha = false;
     static const auto Entropies = true;
     static const auto FrameEntropies = true;
-    
 };
+
 const auto VisibleBoundingBox = true;
-//const auto VisibleBoundaryMesh = false;
 const auto kotei = false;
 
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
 const auto AnalysisInterval = 10; // analysis (visuaization) time interval
+const auto BasePos = kvs::Vec3{ 0.0f, 12.0f, 0.0f };
 //onst auto ViewPos = kvs::Vec3{ 7, 5, 6 }; // viewpoint position
-const auto ViewRad = 12.0f; // viewpoint radius
+//const auto ViewRad = 12.0f; // viewpoint radius
 //const auto ViewPos = Pos( ViewRad ); // viewpoint position
-const auto ViewPos = kvs::Vec3{-3.0f,0.6f,1.8f}; // viewpoint position
+const auto ViewPos = kvs::Vec3{ -3.0f, 0.6f, 1.8f }; // viewpoint position
 const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 }; // viewpoint dimension
-kvs::Vec3 m_base_position = {0.0f,12.0f,0.0f};
-auto xyz_to_rtp = [] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
-    const float x = xyz[0];
-    const float y = xyz[1];
-    const float z = xyz[2];
-    const float r = sqrt( x * x + y * y + z * z );
-    const float t = std::acos( y / r );
-    const float p = std::atan2( x, z );
-    return kvs::Vec3( r, t, p );
-};
-
-auto calc_rotation = [] ( const kvs::Vec3& xyz ) -> kvs::Quaternion {
-    const auto rtp = xyz_to_rtp( xyz );
-    const float phi = rtp[2];
-    const auto axis = kvs::Vec3( { 0.0f, 1.0f, 0.0f } );
-    auto q_phi = kvs::Quaternion( axis, phi );
-    const auto q_theta = kvs::Quaternion::RotationQuaternion( m_base_position, xyz );
-    return q_theta * q_phi;
-};
-auto rotation = calc_rotation(ViewPos);
-const auto Viewpoint = InSituVis::Viewpoint{ { 000000, ViewDir, ViewPos , kvs::Vec3{0,1,0}, rotation} };
+const auto Viewpoint = InSituVis::Viewpoint{ { 000000, ViewDir, ViewPos , kvs::Vec3{ 0, 1, 0 }, Rot( BasePos, ViewPos ) } };
 const auto ViewpointSpherical = InSituVis::SphericalViewpoint{ ViewDim, ViewDir };
 const auto ViewpointPolyhedral = InSituVis::PolyhedralViewpoint{ ViewDim, ViewDir };
 
@@ -128,9 +129,8 @@ const auto Repeats = 50; // number of repetitions for stochastic rendering
 const auto BoundaryMeshOpacity = 30; // opacity value [0-255] of boundary mesh
 } // end of namespace Params
 
+
 // Adaptor
-//using AdaptorBase = InSituVis::mpi::CFCA;
-//using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor
 class Adaptor : public AdaptorBase
 {
 public:
@@ -143,7 +143,6 @@ private:
     kvs::Vec3ui m_global_dims{ 0, 0, 0 };
     kvs::Vec3ui m_offset{ 0, 0, 0 };
     kvs::ColorMap m_cmap{ 256 };
-    size_t m_final_time_step_index = 0;
 
 public:
     Adaptor() = default;
@@ -156,6 +155,12 @@ public:
     void setGlobalDims( const kvs::Vec3ui& dims ) { m_global_dims = dims; }
     void setOffset( const kvs::Vec3ui& offs ) { m_offset = offs; }
     void setColorMap( const kvs::ColorMap& cmap ) { m_cmap = cmap; }
+    void setFinalTimeStepIndex( const size_t index )
+    {
+    #if defined( IN_SITU_VIS__ADAPTOR__CAMERA_PATH_CONTROLL )
+        BaseClass::setFinalTimeStep( index );
+    #endif
+    }
 
     void exec( const SimTime sim_time )
     {
@@ -165,27 +170,18 @@ public:
     }
     void execRendering()
     {
-        /*if ( !Params::VisibleBoundaryMesh && !Params::VisibleBoundingBox )
-        {
-            BaseClass::execRendering();
-            return;
-        }*/
-        if ( !Params::VisibleBoundingBox)
+        if ( !Params::VisibleBoundingBox )
         {
             BaseClass::execRendering();
             return;
         }
 
-        //auto* mesh = kvs::PolygonObject::DownCast( BaseClass::screen().scene()->object( "BoundaryMesh" ) );
-        //if ( mesh && Params::VisibleBoundaryMesh ) { mesh->setVisible( false ); }
-
-        auto* bbox = kvs::LineObject::DownCast( BaseClass::screen().scene()->object( "BoundingBox" ) );
+        auto* bbox = kvs::LineObject::DownCast( BaseClass::screen().scene()->object( "Bounds" ) );
         if ( bbox && Params::VisibleBoundingBox ) { bbox->setVisible( false ); }
 
         BaseClass::execRendering();
 
         const bool visible = BaseClass::world().isRoot();
-        //if ( mesh ) { mesh->setVisible( visible && Params::VisibleBoundaryMesh ); }
         if ( bbox ) { bbox->setVisible( visible && Params::VisibleBoundingBox ); }
 
         if ( BaseClass::isEntropyStep() )
@@ -229,7 +225,7 @@ public:
                 }
             }
         }
-        
+
         /*if ( BaseClass::isEntropyStep() )
         {
             const auto index = BaseClass::maxIndex();
@@ -289,14 +285,6 @@ public:
                 }
             }
         }*/
-    }
-    
-    void setFinalTimeStepIndex( size_t index )
-    {
-        m_final_time_step_index = index;
-    #if defined( IN_SITU_VIS__ADAPTOR__CAMERA_PATH_CONTROLL )
-        this->setFinalTimeStep( m_final_time_step_index );
-    #endif
     }
 
 private:
@@ -507,7 +495,10 @@ Adaptor* InSituVis_new( const int method )
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
     vis->setAnalysisInterval( Params::AnalysisInterval );
-    vis->setOutputSubImageEnabled( true, false, false ); // color, depth, alpha
+    vis->setOutputSubImageEnabled(
+        Params::Output::SubImage,
+        Params::Output::SubImageDepth,
+        Params::Output::SubImageAlpha );
     vis->setColorMap( kvs::ColorMap::CoolWarm() );
     vis->setOutputEntropiesEnabled( Params::Output::Entropies );
     vis->setOutputFrameEntropiesEnabled( Params::Output::FrameEntropies );
@@ -570,6 +561,11 @@ void InSituVis_setOffset( Adaptor* self, int offx, int offy, int offz )
     self->setOffset( kvs::Vec3ui( offx, offy, offz ) );
 }
 
+void InSituVis_setFinalTimeStepIndex( Adaptor* self, int index )
+{
+    self->setFinalTimeStepIndex( index );
+}
+
 void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz )
 {
     const auto dims = kvs::Vec3ui( dimx, dimy, dimz );
@@ -596,4 +592,3 @@ void InSituVis_exec( Adaptor* self, double time_value, int time_index )
 }
 
 } // end of extern "C"
-

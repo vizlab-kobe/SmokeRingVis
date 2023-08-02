@@ -1,7 +1,7 @@
 #!/bin/sh
-PS_COUNT=`ps aux | grep InSituVis.mpi | grep -v grep | wc -l`
+PS_COUNT=`ps aux | grep InSituVis.mpi.CameraFocus | grep -v grep | wc -l`
 if [ $PS_COUNT -gt 0 ]; then
-    killall InSituVis.mpi
+    killall InSituVis.mpi.CameraFocus
 fi
 
 if [ -e "Makefile.kvs" ]; then
