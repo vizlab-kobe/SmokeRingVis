@@ -14,7 +14,7 @@
 #include <InSituVis/Lib/SphericalViewpoint.h>
 #include <InSituVis/Lib/PolyhedralViewpoint.h>
 #include <InSituVis/Lib/StochasticRenderingAdaptor.h>
-//#include <InSituVis/Lib/CameraFocusControlledAdaptor_mpi.h>
+#include <InSituVis/Lib/CameraFocusControlledAdaptor_mpi.h>
 #include <InSituVis/Lib/CFCA.h>
 
 /*****************************************************************************/
@@ -40,8 +40,8 @@
 //#define IN_SITU_VIS__VIEWPOINT__MULTIPLE_POLYHEDRAL
 
 // Base adaptor
-using AdaptorBase = InSituVis::mpi::CFCA;
-//using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor
+//using AdaptorBase = InSituVis::mpi::CFCA;
+using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
 
 inline const kvs::Vec3 Pos( const float r )
 {
@@ -157,9 +157,9 @@ public:
     void setColorMap( const kvs::ColorMap& cmap ) { m_cmap = cmap; }
     void setFinalTimeStepIndex( const size_t index )
     {
-    #if defined( IN_SITU_VIS__ADAPTOR__CAMERA_PATH_CONTROLL )
+#if defined( IN_SITU_VIS__ADAPTOR__CAMERA_PATH_CONTROLL )
         BaseClass::setFinalTimeStep( index );
-    #endif
+#endif
     }
 
     void exec( const SimTime sim_time )
@@ -168,6 +168,8 @@ public:
         this->set_global_bounds();
         BaseClass::exec( sim_time );
     }
+
+#if 0
     void execRendering()
     {
         if ( !Params::VisibleBoundingBox )
@@ -286,6 +288,7 @@ public:
             }
         }*/
     }
+#endif
 
 private:
     void set_min_max_values()
@@ -322,7 +325,8 @@ private:
             dummy.setMinMaxObjectCoords( min_coord, max_coord );
             dummy.setMinMaxExternalCoords( min_coord, max_coord );
 
-            const bool visible = BaseClass::isAlphaBlendingEnabled() ? false : BaseClass::world().isRoot();
+//            const bool visible = BaseClass::isAlphaBlendingEnabled() ? false : BaseClass::world().isRoot();
+            const bool visible = false;
             kvs::Bounds bounds( kvs::RGBColor::Black(), 2.0f );
             auto* object = bounds.outputLineObject( &dummy );
             object->setName( "Bounds" );
