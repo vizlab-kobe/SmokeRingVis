@@ -14,7 +14,7 @@ module InSituVis_m
      procedure :: finalize => InSituVis_finalize
      procedure :: setGlobalDims => InSituVis_setGlobalDims
      procedure :: setOffset => InSituVis_setOffset
-     procedure :: setFinalTimeStepIndex => InSituVis_setFinalTimeStepIndex
+     procedure :: setFinalTimeStep => InSituVis_setFinalTimeStep
      procedure :: put => InSituVis_put
      procedure :: exec => InSituVis_exec
   end type InSituVis
@@ -78,12 +78,12 @@ module InSituVis_m
        integer( C_int ), value :: offz
      end subroutine C_InSituVis_setOffset
 
-     subroutine C_InSituVis_setFinalTimeStepIndex( this, index )&
-          bind( C, name="InSituVis_setFinalTimeStepIndex" )
+     subroutine C_InSituVis_setFinalTimeStep( this, index )&
+          bind( C, name="InSituVis_setFinalTimeStep" )
        import
        type( C_ptr ),    value :: this
        integer( C_int ), value :: index
-     end subroutine C_InSituVis_setFinalTimeStepIndex
+     end subroutine C_InSituVis_setFinalTimeStep
 
      subroutine C_InSituVis_put( this, values, dimx, dimy, dimz )&
           bind( C, name="InSituVis_put" )
@@ -168,12 +168,12 @@ contains
     call C_InSituVis_setOffset( this % ptr, offx, offy, offz )
   end subroutine InSituVis_setOffset
 
-  subroutine InSituVis_setFinalTimeStepIndex( this, index )
+  subroutine InSituVis_setFinalTimeStep( this, index )
     implicit none
     class( InSituVis ), intent( in ) :: this
     integer( C_int ),   intent( in ) :: index
-    call C_InSituVis_setFinalTimeStepIndex( this % ptr, index )
-  end subroutine InSituVis_setFinalTimeStepIndex
+    call C_InSituVis_setFinalTimeStep( this % ptr, index )
+  end subroutine InSituVis_setFinalTimeStep
 
   subroutine InSituVis_put( this, values, dimx, dimy, dimz )
     implicit none

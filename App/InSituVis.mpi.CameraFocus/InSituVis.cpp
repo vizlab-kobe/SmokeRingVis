@@ -21,23 +21,9 @@
 // In-situ visualization settings
 /*****************************************************************************/
 
-// Adaptor setting
-//----------------------------------------------------------------------------
-#define IN_SITU_VIS__ADAPTOR__CAMERA_PATH_CONTROLL
-//#define IN_SITU_VIS__ADAPTOR__STOCHASTIC_RENDERING
-
-// Pipeline setting
-//----------------------------------------------------------------------------
-//#define IN_SITU_VIS__PIPELINE__ORTHO_SLICE
-#define IN_SITU_VIS__PIPELINE__ISOSURFACE
-//#define IN_SITU_VIS__PIPELINE__EXTERNAL_FACE
-//#define IN_SITU_VIS__PIPELINE__WHOLE_MIN_MAX_VALUES
-
 // Viewpoint setting
-//----------------------------------------------------------------------------
-#define IN_SITU_VIS__VIEWPOINT__SINGLE
-//#define IN_SITU_VIS__VIEWPOINT__MULTIPLE_SPHERICAL
-//#define IN_SITU_VIS__VIEWPOINT__MULTIPLE_POLYHEDRAL
+#define IN_SITU_VIS__VIEWPOINT__FIXED
+#define IN_SITU_VIS__VIEWPOINT__ESTIMATION
 
 // Base adaptor
 //using AdaptorBase = InSituVis::mpi::CFCA;
@@ -84,8 +70,9 @@ struct Output
     static const auto SubImage = false;
     static const auto SubImageDepth = false;
     static const auto SubImageAlpha = false;
-    static const auto Entropies = true;
+    static const auto Entropies = false;
     static const auto FrameEntropies = true;
+    static const auto ZoomEntropies = true;
 };
 
 const auto VisibleBoundingBox = true;
@@ -93,16 +80,16 @@ const auto kotei = false;
 
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
 const auto AnalysisInterval = 10; // analysis (visuaization) time interval
-const auto BasePos = kvs::Vec3{ 0.0f, 12.0f, 0.0f };
-//onst auto ViewPos = kvs::Vec3{ 7, 5, 6 }; // viewpoint position
-//const auto ViewRad = 12.0f; // viewpoint radius
-//const auto ViewPos = Pos( ViewRad ); // viewpoint position
-const auto ViewPos = kvs::Vec3{ -3.0f, 0.6f, 1.8f }; // viewpoint position
+
+// Viewpoint setting.
 const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
+#if defined( IN_SITU_VIS__VIEWPOINT__FIXED )
+const auto ViewPos = kvs::Vec3{ -10, 0, 12 }; // viewpoint position
+const auto Viewpoint = InSituVis::Viewpoint{ { ViewDir, ViewPos } };
+#elif defined( IN_SITU_VIS__VIEWPOINT__ESTIMATION )
 const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 }; // viewpoint dimension
-const auto Viewpoint = InSituVis::Viewpoint{ { 000000, ViewDir, ViewPos , kvs::Vec3{ 0, 1, 0 }, Rot( BasePos, ViewPos ) } };
-const auto ViewpointSpherical = InSituVis::SphericalViewpoint{ ViewDim, ViewDir };
-const auto ViewpointPolyhedral = InSituVis::PolyhedralViewpoint{ ViewDim, ViewDir };
+const auto Viewpoint = InSituVis::SphericalViewpoint{ ViewDim, ViewDir };
+#endif
 
 // For IN_SITU_VIS__ADAPTOR__CAMERA_FOCUS_CONTROLL
 const auto ZoomLevel = 5;
@@ -111,11 +98,11 @@ const auto EntropyInterval = 1; // L: entropy calculation time interval
 //const auto EntropyInterval = 2; // L: entropy calculation time interval
 const auto MixedRatio = 0.5f; // mixed entropy ratio
 //const auto MixedRatio = 0.75f; // mixed entropy ratio
+
+// Entropy function
 auto LightEnt = AdaptorBase::LightnessEntropy();
 auto DepthEnt = AdaptorBase::DepthEntropy();
 auto MixedEnt = AdaptorBase::MixedEntropy( LightEnt, DepthEnt, MixedRatio );
-
-// Entropy function
 auto EntropyFunction = MixedEnt;
 //auto EntropyFunction = LightEnt;
 //auto EntropyFunction = DepthEnt;
@@ -123,10 +110,6 @@ auto EntropyFunction = MixedEnt;
 // Path interpolator
 auto Interpolator = AdaptorBase::Squad();
 //auto Interpolator = ::Adaptor::Slerp();
-
-// For IN_SITU_VIS__ADAPTOR__STOCHASTIC_RENDERING
-const auto Repeats = 50; // number of repetitions for stochastic rendering
-const auto BoundaryMeshOpacity = 30; // opacity value [0-255] of boundary mesh
 } // end of namespace Params
 
 
@@ -155,12 +138,6 @@ public:
     void setGlobalDims( const kvs::Vec3ui& dims ) { m_global_dims = dims; }
     void setOffset( const kvs::Vec3ui& offs ) { m_offset = offs; }
     void setColorMap( const kvs::ColorMap& cmap ) { m_cmap = cmap; }
-    void setFinalTimeStepIndex( const size_t index )
-    {
-#if defined( IN_SITU_VIS__ADAPTOR__CAMERA_PATH_CONTROLL )
-        BaseClass::setFinalTimeStep( index );
-#endif
-    }
 
     void exec( const SimTime sim_time )
     {
@@ -399,28 +376,16 @@ public:
             auto n = kvs::Isosurface::VertexNormal;
             auto d = true;
 
-            auto i0 = kvs::Math::Mix( min_value, max_value, 0.1 );
-            //auto i1 = kvs::Math::Mix( min_value, max_value, 0.2 );
-            //auto i2 = kvs::Math::Mix( min_value, max_value, 0.5 );
-            //auto i3 = kvs::Math::Mix( min_value, max_value, 0.9 );
-            auto* o0 = new kvs::Isosurface( &volume, i0, n, d, t );
-            //auto* o1 = new kvs::Isosurface( &volume, i1, n, d, t );
-            //auto* o2 = new kvs::Isosurface( &volume, i2, n, d, t );
-            //auto* o3 = new kvs::Isosurface( &volume, i3, n, d, t );
-            o0->setName( "Isosurface0" );
-            //o1->setName( "Isosurface1" );
-            //o2->setName( "Isosurface2" );
-            //o3->setName( "Isosurface3" );
+            auto i = kvs::Math::Mix( min_value, max_value, 0.1 );
+            auto* o = new kvs::Isosurface( &volume, i, n, d, t );
+            o->setName( "Isosurface" );
 
             // Register object and renderer to screen
             kvs::Light::SetModelTwoSide( true );
-            if ( screen.scene()->hasObject( "Isosurface0" ) )
+            if ( screen.scene()->hasObject( "Isosurface" ) )
             {
                 // Update the objects.
-                screen.scene()->replaceObject( "Isosurface0", o0 );
-                //screen.scene()->replaceObject( "Isosurface1", o1 );
-                //screen.scene()->replaceObject( "Isosurface2", o2 );
-                //screen.scene()->replaceObject( "Isosurface3", o3 );
+                screen.scene()->replaceObject( "Isosurface", o );
             }
             else
             {
@@ -428,18 +393,9 @@ public:
                 //screen.registerObject( o0, new kvs::Bounds() );
 
                 // Register the objects with renderer.
-                auto* r0 = new kvs::glsl::PolygonRenderer();
-                //auto* r1 = new kvs::glsl::PolygonRenderer();
-                //auto* r2 = new kvs::glsl::PolygonRenderer();
-                //auto* r3 = new kvs::glsl::PolygonRenderer();
-                r0->setTwoSideLightingEnabled( true );
-                //r1->setTwoSideLightingEnabled( true );
-                //r2->setTwoSideLightingEnabled( true );
-                //r3->setTwoSideLightingEnabled( true );
-                screen.registerObject( o0, r0 );
-                //screen.registerObject( o1, r1 );
-                //screen.registerObject( o2, r2 );
-                //screen.registerObject( o3, r3 );
+                auto* r = new kvs::glsl::PolygonRenderer();
+                r->setTwoSideLightingEnabled( true );
+                screen.registerObject( o, r );
             }
         };
     };
@@ -496,33 +452,30 @@ extern "C"
 Adaptor* InSituVis_new( const int method )
 {
     auto* vis = new Adaptor();
-    vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
-    vis->setViewpoint( Params::Viewpoint );
-    vis->setAnalysisInterval( Params::AnalysisInterval );
+    vis->setOutputImageEnabled(
+        Params::Output::Image );
     vis->setOutputSubImageEnabled(
         Params::Output::SubImage,
         Params::Output::SubImageDepth,
         Params::Output::SubImageAlpha );
-    vis->setColorMap( kvs::ColorMap::CoolWarm() );
-    vis->setOutputEntropiesEnabled( Params::Output::Entropies );
-    vis->setOutputFrameEntropiesEnabled( Params::Output::FrameEntropies );
+    vis->setOutputEntropiesEnabled(
+        Params::Output::Entropies );
+    vis->setOutputFrameEntropiesEnabled(
+        Params::Output::FrameEntropies );
     /*vis->setOutputEvaluationImageEnabled(
         Params::Output::EvalImage,
         Params::Output::EvalImageDepth );*/
+    vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
+    vis->setViewpoint( Params::Viewpoint );
     vis->setAnalysisInterval( Params::AnalysisInterval );
+    vis->setColorMap( kvs::ColorMap::CoolWarm() );
     vis->setZoomLevel( Params::ZoomLevel );
     vis->setFrameDivisions( Params::FrameDivs );
     vis->setEntropyInterval( Params::EntropyInterval );
     vis->setEntropyFunction( Params::EntropyFunction );
     vis->setInterpolator( Params::Interpolator );
+    vis->setViewpoint( Params::Viewpoint );
 
-#if defined( IN_SITU_VIS__VIEWPOINT__SINGLE )
-        vis->setViewpoint( Params::Viewpoint );
-#elif defined( IN_SITU_VIS__VIEWPOINT__MULTIPLE_SPHERICAL )
-        vis->setViewpoint( Params::ViewpointSpherical );
-#elif defined( IN_SITU_VIS__VIEWPOINT__MULTIPLE_POLYHEDRAL )
-        vis->setViewpoint( Params::ViewpointPolyhedral );
-#endif
     switch ( method )
     {
     case 1: vis->setPipeline( Adaptor::OrthoSlice( vis ) ); break;
@@ -565,9 +518,9 @@ void InSituVis_setOffset( Adaptor* self, int offx, int offy, int offz )
     self->setOffset( kvs::Vec3ui( offx, offy, offz ) );
 }
 
-void InSituVis_setFinalTimeStepIndex( Adaptor* self, int index )
+void InSituVis_setFinalTimeStep( Adaptor* self, int index )
 {
-    self->setFinalTimeStepIndex( index );
+    self->setFinalTimeStep( index );
 }
 
 void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz )

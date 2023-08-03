@@ -89,7 +89,7 @@ program main_m
   call insitu_vis % initialize()
   call insitu_vis % setGlobalDims( NX_GLOBAL, NY_GLOBAL, NZ_GLOBAL )
   call insitu_vis % setOffset( offx, offy, offz )
-  call insitu_vis % setFinalTimeStepIndex( job % nloop_end )
+  call insitu_vis % setFinalTimeStep( job % nloop_end )
   ! }
 
   do while( Job%karte == "fine" )                 ;call kutimer__count
