@@ -21,44 +21,13 @@
 // In-situ visualization settings
 /*****************************************************************************/
 
-// Viewpoint setting
-#define IN_SITU_VIS__VIEWPOINT__FIXED
-#define IN_SITU_VIS__VIEWPOINT__ESTIMATION
-
 // Base adaptor
 //using AdaptorBase = InSituVis::mpi::CFCA;
 using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
 
-inline const kvs::Vec3 Pos( const float r )
-{
-    const auto tht = kvs::Math::pi / 4.0f;
-    const auto phi = kvs::Math::pi / 4.0f;
-    const auto x = static_cast<float>( r * std::sin( tht ) * std::sin( phi ) );
-    const auto y = static_cast<float>( r * std::cos( tht ) );
-    const auto z = static_cast<float>( r * std::sin( tht ) * std::cos( phi ) );
-    return kvs::Vec3{ x, y, z };
-};
-
-inline kvs::Quaternion Rot( const kvs::Vec3& base, const kvs::Vec3& xyz )
-{
-    auto xyz_to_rtp = [] ( const kvs::Vec3& m )
-    {
-        const float x = m[0];
-        const float y = m[1];
-        const float z = m[2];
-        const float r = sqrt( x * x + y * y + z * z );
-        const float t = std::acos( y / r );
-        const float p = std::atan2( x, z );
-        return kvs::Vec3( r, t, p );
-    };
-
-    const auto rtp = xyz_to_rtp( xyz );
-    const float phi = rtp[2];
-    const auto axis = kvs::Vec3( { 0.0f, 1.0f, 0.0f } );
-    const auto q_phi = kvs::Quaternion( axis, phi );
-    const auto q_theta = kvs::Quaternion::RotationQuaternion( base, xyz );
-    return q_theta * q_phi;
-};
+// Viewpoint setting
+#define IN_SITU_VIS__VIEWPOINT__FIXED
+//#define IN_SITU_VIS__VIEWPOINT__ESTIMATION
 
 // Parameters
 namespace Params
@@ -91,21 +60,20 @@ const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 }; // viewpoint dimension
 const auto Viewpoint = InSituVis::SphericalViewpoint{ ViewDim, ViewDir };
 #endif
 
-// For IN_SITU_VIS__ADAPTOR__CAMERA_FOCUS_CONTROLL
+// Zooming parameters.
 const auto ZoomLevel = 5;
 const auto FrameDivs = kvs::Vec2ui{ 10, 10 };
+const auto AutoZoom = false;
 const auto EntropyInterval = 1; // L: entropy calculation time interval
-//const auto EntropyInterval = 2; // L: entropy calculation time interval
-const auto MixedRatio = 0.5f; // mixed entropy ratio
-//const auto MixedRatio = 0.75f; // mixed entropy ratio
 
 // Entropy function
+const auto MixedRatio = 0.5f; // mixed entropy ratio
 auto LightEnt = AdaptorBase::LightnessEntropy();
 auto DepthEnt = AdaptorBase::DepthEntropy();
 auto MixedEnt = AdaptorBase::MixedEntropy( LightEnt, DepthEnt, MixedRatio );
-auto EntropyFunction = MixedEnt;
+//auto EntropyFunction = MixedEnt;
 //auto EntropyFunction = LightEnt;
-//auto EntropyFunction = DepthEnt;
+auto EntropyFunction = DepthEnt;
 
 // Path interpolator
 auto Interpolator = AdaptorBase::Squad();
@@ -474,7 +442,7 @@ Adaptor* InSituVis_new( const int method )
     vis->setEntropyInterval( Params::EntropyInterval );
     vis->setEntropyFunction( Params::EntropyFunction );
     vis->setInterpolator( Params::Interpolator );
-    vis->setViewpoint( Params::Viewpoint );
+    vis->setAutoZoomingEnabled( Params::AutoZoom );
 
     switch ( method )
     {
