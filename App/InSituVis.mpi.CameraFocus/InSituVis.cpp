@@ -21,13 +21,20 @@
 // In-situ visualization settings
 /*****************************************************************************/
 
-// Base adaptor
-//using AdaptorBase = InSituVis::mpi::CFCA;
-using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
-
-// Viewpoint setting
+// Viewpoint
 #define IN_SITU_VIS__VIEWPOINT__FIXED
 //#define IN_SITU_VIS__VIEWPOINT__ESTIMATION
+
+// Adaptor
+//#define IN_SITU_VIS__ADAPTOR__CFCA
+#define IN_SITU_VIS__ADAPTOR__CAMERA_CONTROL
+
+// Base adaptor
+#if defined( IN_SITU_VIS__ADAPTOR__CFCA )
+using AdaptorBase = InSituVis::mpi::CFCA;
+#elif defined( IN_SITU_VIS__ADAPTOR__CAMERA_CONTROL )
+using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
+#endif
 
 // Parameters
 namespace Params
@@ -63,6 +70,7 @@ const auto Viewpoint = InSituVis::SphericalViewpoint{ ViewDim, ViewDir };
 // Zooming parameters.
 const auto ZoomLevel = 5;
 const auto FrameDivs = kvs::Vec2ui{ 10, 10 };
+//const auto FrameDivs = kvs::Vec2ui{ 20, 20 };
 const auto AutoZoom = false;
 const auto EntropyInterval = 1; // L: entropy calculation time interval
 
@@ -71,9 +79,9 @@ const auto MixedRatio = 0.5f; // mixed entropy ratio
 auto LightEnt = AdaptorBase::LightnessEntropy();
 auto DepthEnt = AdaptorBase::DepthEntropy();
 auto MixedEnt = AdaptorBase::MixedEntropy( LightEnt, DepthEnt, MixedRatio );
-//auto EntropyFunction = MixedEnt;
+auto EntropyFunction = MixedEnt;
 //auto EntropyFunction = LightEnt;
-auto EntropyFunction = DepthEnt;
+//auto EntropyFunction = DepthEnt;
 
 // Path interpolator
 auto Interpolator = AdaptorBase::Squad();
@@ -114,7 +122,7 @@ public:
         BaseClass::exec( sim_time );
     }
 
-#if 0
+#if defined( IN_SITU_VIS__ADAPTOR__CFCA )
     void execRendering()
     {
         if ( !Params::VisibleBoundingBox )
@@ -442,7 +450,9 @@ Adaptor* InSituVis_new( const int method )
     vis->setEntropyInterval( Params::EntropyInterval );
     vis->setEntropyFunction( Params::EntropyFunction );
     vis->setInterpolator( Params::Interpolator );
+#if defined( IN_SITU_VIS__ADAPTOR__CAMERA_CONTROL )
     vis->setAutoZoomingEnabled( Params::AutoZoom );
+#endif
 
     switch ( method )
     {
