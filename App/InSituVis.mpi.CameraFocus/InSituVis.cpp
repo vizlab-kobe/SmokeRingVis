@@ -22,8 +22,8 @@
 /*****************************************************************************/
 
 // Viewpoint
-#define IN_SITU_VIS__VIEWPOINT__FIXED
-//#define IN_SITU_VIS__VIEWPOINT__ESTIMATION
+//#define IN_SITU_VIS__VIEWPOINT__FIXED
+#define IN_SITU_VIS__VIEWPOINT__ESTIMATION
 
 // Adaptor
 //#define IN_SITU_VIS__ADAPTOR__CFCA
@@ -50,7 +50,7 @@ struct Output
     static const auto FrameEntropies = true;
     static const auto ZoomEntropies = true;
 };
-
+const auto EstimateIncludingBox = false;
 const auto VisibleBoundingBox = true;
 const auto kotei = false;
 
@@ -60,7 +60,7 @@ const auto AnalysisInterval = 10; // analysis (visuaization) time interval
 // Viewpoint setting.
 const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 #if defined( IN_SITU_VIS__VIEWPOINT__FIXED )
-const auto ViewPos = kvs::Vec3{ -10, 0, 12 }; // viewpoint position
+const auto ViewPos = kvs::Vec3{ -8, 0, 8 }; // viewpoint position
 const auto Viewpoint = InSituVis::Viewpoint{ { ViewDir, ViewPos } };
 #elif defined( IN_SITU_VIS__VIEWPOINT__ESTIMATION )
 const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 }; // viewpoint dimension
@@ -69,13 +69,13 @@ const auto Viewpoint = InSituVis::SphericalViewpoint{ ViewDim, ViewDir };
 
 // Zooming parameters.
 const auto ZoomLevel = 5;
-const auto FrameDivs = kvs::Vec2ui{ 10, 10 };
+const auto FrameDivs = kvs::Vec2ui{ 20, 20 };
 //const auto FrameDivs = kvs::Vec2ui{ 20, 20 };
-const auto AutoZoom = false;
+const auto AutoZoom = true;
 const auto EntropyInterval = 1; // L: entropy calculation time interval
 
 // Entropy function
-const auto MixedRatio = 0.5f; // mixed entropy ratio
+const auto MixedRatio = 0.0f; // mixed entropy ratio
 auto LightEnt = AdaptorBase::LightnessEntropy();
 auto DepthEnt = AdaptorBase::DepthEntropy();
 auto MixedEnt = AdaptorBase::MixedEntropy( LightEnt, DepthEnt, MixedRatio );
@@ -121,8 +121,133 @@ public:
         this->set_global_bounds();
         BaseClass::exec( sim_time );
     }
+#if defined( IN_SITU_VIS__ADAPTOR__CAMERA_CONTROL )
+    void execRendering()
+    {
+        if ( !Params::VisibleBoundingBox )
+        {
+            std::cout<<"aaaa"<<std::endl;
+            BaseClass::execRendering();
+            return;
+        }
 
-#if defined( IN_SITU_VIS__ADAPTOR__CFCA )
+        auto* bbox = kvs::LineObject::DownCast( BaseClass::screen().scene()->object( "Bounds" ) );
+        if ( bbox && Params::VisibleBoundingBox ) { bbox->setVisible( false ); }
+
+        if (Params::EstimateIncludingBox == false)
+        {
+            BaseClass::execRendering();
+
+            const bool visible = BaseClass::world().isRoot();
+            if ( bbox ) { bbox->setVisible( visible && Params::VisibleBoundingBox );}
+
+            if ( BaseClass::isEntropyStep() )
+            {
+                const auto index = BaseClass::maxIndex();
+                const auto focus = BaseClass::maxFocusPoint();
+                auto location = BaseClass::focusedLocation( BaseClass::viewpoint().at( index ), focus );
+                const auto zoom_level = BaseClass::zoomLevel();
+                auto p = location.position;
+                for ( size_t level = 0; level < zoom_level; level++ )
+                {
+                    // Update camera position.
+                    auto t = static_cast<float>( level ) / static_cast<float>( zoom_level );
+                    location.position = ( 1 - t ) * p + t * focus;
+                    if(Params::kotei == true)
+                    {
+                       location.look_at = {0,0,0};
+                       location.up_vector = {0,1,0};
+                    }
+                    // Output the rendering images and the heatmap of entropies.
+                        if ( Params::AutoZoom == false )
+                        {
+                            auto frame_buffer =  BaseClass::readback( location );
+                            if ( BaseClass::world().isRoot() )
+                            { 
+                                if ( BaseClass::isOutputImageEnabled() )
+                                {
+                                    this->outputColorImage( location, frame_buffer, level );
+                                }
+                            }
+                        }
+                }
+                if ( Params::AutoZoom )
+                {   
+                    location = BaseClass::viewpoint().at( index );
+                    auto bestlocation = BaseClass::focusedLocation( location , focus ); 
+                    bestlocation.position = BaseClass::estimatedZoomPosition();
+                    bestlocation.rotation = BaseClass::maxRotation();
+                    const auto level = BaseClass::estimatedZoomLevel();
+                    auto frame_buffer = BaseClass::readback( bestlocation );
+                    if ( BaseClass::world().isRoot() )
+                    {
+                        if ( BaseClass::isOutputImageEnabled() )
+                        {
+                            BaseClass::outputColorImage( bestlocation, frame_buffer, level );
+                        }
+                    }
+                }
+        
+            }
+            else
+            {
+                const auto focus = BaseClass::maxFocusPoint();
+                auto location = BaseClass::erpLocation( focus );
+                const auto zoom_level = BaseClass::zoomLevel();
+                const auto p = location.position;
+                for ( size_t level = 0; level < zoom_level; level++ )
+                {
+                    auto t = static_cast<float>( level ) / static_cast<float>( zoom_level );
+                    location.position = ( 1 - t ) * p + t * focus;
+                    //注視点を固定させたい時
+                    if(Params::kotei)
+                    {
+                        location.look_at = {0,0,0};
+                        location.up_vector = {0,1,0};
+                    }
+                    if ( Params::AutoZoom == false )
+                    {
+                        auto frame_buffer = BaseClass::readback( location );
+                        // Output the rendering images and the heatmap of entropies.
+                        if ( BaseClass::world().isRoot() )
+                        {
+                            if ( BaseClass::isOutputImageEnabled() )
+                            {
+                                BaseClass::outputColorImage( location, frame_buffer, level );
+                                //BaseClass::outputDepthImage( location, frame_buffer, level );
+                            }
+                        }
+                    }
+                }
+                if(Params::AutoZoom)
+                {
+                    const auto focus = BaseClass::erpFocus();
+                    auto bestlocation = BaseClass::erpLocation( focus );
+                    //location.position = BaseClass::bestLocationPosition();
+                    //auto bestlocation = BaseClass::erpLocation( focus );
+                    //auto location = BaseClass::bestLocation();
+                    const auto level = BaseClass::estimatedZoomLevel();
+                    auto frame_buffer = BaseClass::readback( bestlocation );
+
+                    // Output the rendering images and the heatmap of entropies.
+                    if ( BaseClass::world().isRoot() )
+                    {
+                        if ( BaseClass::isOutputImageEnabled() )
+                        {
+                            BaseClass::outputColorImage( bestlocation, frame_buffer, level );
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            const bool visible = BaseClass::world().isRoot();
+            if ( bbox ) { bbox->setVisible( visible && Params::VisibleBoundingBox ); }
+            BaseClass::execRendering();
+        }
+    }
+#elif defined( IN_SITU_VIS__ADAPTOR__CFCA )
     void execRendering()
     {
         if ( !Params::VisibleBoundingBox )
@@ -278,7 +403,7 @@ private:
             dummy.setMinMaxObjectCoords( min_coord, max_coord );
             dummy.setMinMaxExternalCoords( min_coord, max_coord );
 
-//            const bool visible = BaseClass::isAlphaBlendingEnabled() ? false : BaseClass::world().isRoot();
+            //const bool visible = BaseClass::isAlphaBlendingEnabled() ? false : BaseClass::world().isRoot();
             const bool visible = false;
             kvs::Bounds bounds( kvs::RGBColor::Black(), 2.0f );
             auto* object = bounds.outputLineObject( &dummy );
