@@ -24,8 +24,8 @@
 /*****************************************************************************/
 
 // Viewpoint
-//#define IN_SITU_VIS__VIEWPOINT__FIXED
-#define IN_SITU_VIS__VIEWPOINT__ESTIMATION
+#define IN_SITU_VIS__VIEWPOINT__FIXED
+//#define IN_SITU_VIS__VIEWPOINT__ESTIMATION
 
 // Adaptor
 //#define IN_SITU_VIS__ADAPTOR__CFCA
@@ -53,7 +53,7 @@ struct Output
     static const auto ZoomEntropies = true;
 };
 const auto EstimateIncludingBox = false;
-const auto VisibleBoundingBox = true;
+const auto VisibleBoundingBox = false;
 const auto kotei = false;
 
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
@@ -134,7 +134,6 @@ public:
     {
         if ( !Params::VisibleBoundingBox )
         {
-            std::cout<<"aaaa"<<std::endl;
             BaseClass::execRendering();
             return;
         }
