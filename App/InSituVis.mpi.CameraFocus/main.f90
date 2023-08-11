@@ -93,6 +93,9 @@ program main_m
   ! }
 
   do while( Job%karte == "fine" )                 ;call kutimer__count
+     call insitu_vis % simTimerStart()
+     ! {
+
     !! このシミュレーションのメインループ。ジョブカルテが
     !! 「健康 (fine)」状態である限りシミュレーションを続行する。 
     Job%nloop = Job%nloop + 1  
@@ -113,11 +116,16 @@ program main_m
 !    call vis2d%draw( time, Job%nloop, fluid )     ;call kutimer__('main  ','vis2  ')
       !! シミュレーション領域の断面図をSVGで出力する。
 
+    call insitu_vis % simTimerStamp()
+    ! }
+
     ! IN_SITU_VIS: Put & Execute
     ! {
+    call insitu_vis % visTimerStart()
     !call insitu_vis % put( fluid % pressure, dimx, dimy, dimz )
     call insitu_vis % put( get_enstrophy( fluid ), dimx, dimy, dimz )
     call insitu_vis % exec( time, job % nloop )
+    call insitu_vis % visTimerStamp()
     ! }
 
     if ( Job%nloop >= Job%nloop_end ) then

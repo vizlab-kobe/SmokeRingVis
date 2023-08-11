@@ -15,6 +15,10 @@ module InSituVis_m
      procedure :: setGlobalDims => InSituVis_setGlobalDims
      procedure :: setOffset => InSituVis_setOffset
      procedure :: setFinalTimeStep => InSituVis_setFinalTimeStep
+     procedure :: simTimerStart => InSituVis_simTimerStart
+     procedure :: simTimerStamp => InSituVis_simTimerStamp
+     procedure :: visTimerStart => InSituVis_visTimerStart
+     procedure :: visTimerStamp => InSituVis_visTimerStamp
      procedure :: put => InSituVis_put
      procedure :: exec => InSituVis_exec
   end type InSituVis
@@ -84,6 +88,30 @@ module InSituVis_m
        type( C_ptr ),    value :: this
        integer( C_int ), value :: index
      end subroutine C_InSituVis_setFinalTimeStep
+
+     subroutine C_InSituVis_simTimerStart( this )&
+          bind( C, name="InSituVis_simTimerStart" )
+       import
+       type( C_ptr ), value :: this
+     end subroutine C_InSituVis_simTimerStart
+
+     subroutine C_InSituVis_simTimerStamp( this )&
+          bind( C, name="InSituVis_simTimerStamp" )
+       import
+       type( C_ptr ), value :: this
+     end subroutine C_InSituVis_simTimerStamp
+
+     subroutine C_InSituVis_visTimerStart( this )&
+          bind( C, name="InSituVis_visTimerStart" )
+       import
+       type( C_ptr ), value :: this
+     end subroutine C_InSituVis_visTimerStart
+
+     subroutine C_InSituVis_visTimerStamp( this )&
+          bind( C, name="InSituVis_visTimerStamp" )
+       import
+       type( C_ptr ), value :: this
+     end subroutine C_InSituVis_visTimerStamp
 
      subroutine C_InSituVis_put( this, values, dimx, dimy, dimz )&
           bind( C, name="InSituVis_put" )
@@ -174,6 +202,30 @@ contains
     integer( C_int ),   intent( in ) :: index
     call C_InSituVis_setFinalTimeStep( this % ptr, index )
   end subroutine InSituVis_setFinalTimeStep
+
+  subroutine InSituVis_simTimerStart( this )
+    implicit none
+    class( InSituVis ), intent( in ) :: this
+    call C_InSituVis_simTimerStart( this % ptr )
+  end subroutine InSituVis_simTimerStart
+
+  subroutine InSituVis_simTimerStamp( this )
+    implicit none
+    class( InSituVis ), intent( in ) :: this
+    call C_InSituVis_simTimerStamp( this % ptr )
+  end subroutine InSituVis_simTimerStamp
+
+  subroutine InSituVis_visTimerStart( this )
+    implicit none
+    class( InSituVis ), intent( in ) :: this
+    call C_InSituVis_visTimerStart( this % ptr )
+  end subroutine InSituVis_visTimerStart
+
+  subroutine InSituVis_visTimerStamp( this )
+    implicit none
+    class( InSituVis ), intent( in ) :: this
+    call C_InSituVis_visTimerStamp( this % ptr )
+  end subroutine InSituVis_visTimerStamp
 
   subroutine InSituVis_put( this, values, dimx, dimy, dimz )
     implicit none

@@ -8,6 +8,8 @@
 #include <kvs/OrthoSlice>
 #include <kvs/Bounds>
 #include <kvs/Coordinate>
+#include <kvs/StampTimer>
+#include <kvs/StampTimerList>
 #include <InSituVis/Lib/Adaptor.h>
 #include <InSituVis/Lib/Viewpoint.h>
 #include <InSituVis/Lib/CubicViewpoint.h>
@@ -102,6 +104,8 @@ private:
     kvs::Vec3ui m_global_dims{ 0, 0, 0 };
     kvs::Vec3ui m_offset{ 0, 0, 0 };
     kvs::ColorMap m_cmap{ 256 };
+    kvs::mpi::StampTimer m_sim_timer{ BaseClass::world() }; ///< timer for sim. process
+    kvs::mpi::StampTimer m_vis_timer{ BaseClass::world() }; ///< timer for vis. process
 
 public:
     Adaptor() = default;
@@ -115,12 +119,16 @@ public:
     void setOffset( const kvs::Vec3ui& offs ) { m_offset = offs; }
     void setColorMap( const kvs::ColorMap& cmap ) { m_cmap = cmap; }
 
+    kvs::mpi::StampTimer& simTimer() { return m_sim_timer; }
+    kvs::mpi::StampTimer& visTimer() { return m_vis_timer; }
+
     void exec( const SimTime sim_time )
     {
         this->set_min_max_values();
         this->set_global_bounds();
         BaseClass::exec( sim_time );
     }
+
 #if defined( IN_SITU_VIS__ADAPTOR__CAMERA_CONTROL )
     void execRendering()
     {
@@ -172,7 +180,7 @@ public:
                         }
                 }
                 if ( Params::AutoZoom )
-                {   
+                {
                     location = BaseClass::viewpoint().at( index );
                     auto bestlocation = BaseClass::focusedLocation( location , focus ); 
                     bestlocation.position = BaseClass::estimatedZoomPosition();
@@ -187,7 +195,6 @@ public:
                         }
                     }
                 }
-        
             }
             else
             {
@@ -247,6 +254,7 @@ public:
             BaseClass::execRendering();
         }
     }
+
 #elif defined( IN_SITU_VIS__ADAPTOR__CFCA )
     void execRendering()
     {
@@ -367,6 +375,52 @@ public:
         }*/
     }
 #endif
+
+    bool dump()
+    {
+        this->log() << "dump" << std::endl;
+
+        if ( !BaseClass::dump() ) return false;
+
+        // For each node
+        m_sim_timer.setTitle( "Sim time" );
+        m_vis_timer.setTitle( "Vis time" );
+
+        const std::string rank = kvs::String::From( this->world().rank(), 4, '0' );
+        const std::string subdir = BaseClass::outputDirectory().name() + "/";
+        kvs::StampTimerList timer_list;
+        timer_list.push( m_sim_timer );
+        timer_list.push( m_vis_timer );
+        if ( !timer_list.write( subdir + "proc_time_" + rank + ".csv" ) ) return false;
+
+        // For root node
+        auto sim_time_min = m_sim_timer; sim_time_min.reduceMin();
+        auto sim_time_max = m_sim_timer; sim_time_max.reduceMax();
+        auto sim_time_ave = m_sim_timer; sim_time_ave.reduceAve();
+        auto vis_time_min = m_vis_timer; vis_time_min.reduceMin();
+        auto vis_time_max = m_vis_timer; vis_time_max.reduceMax();
+        auto vis_time_ave = m_vis_timer; vis_time_ave.reduceAve();
+
+        if ( !this->world().isRoot() ) return true;
+
+        sim_time_min.setTitle( "Sim time (min)" );
+        sim_time_max.setTitle( "Sim time (max)" );
+        sim_time_ave.setTitle( "Sim time (ave)" );
+        vis_time_min.setTitle( "Vis time (min)" );
+        vis_time_max.setTitle( "Vis time (max)" );
+        vis_time_ave.setTitle( "Vis time (ave)" );
+
+        timer_list.clear();
+        timer_list.push( sim_time_min );
+        timer_list.push( sim_time_max );
+        timer_list.push( sim_time_ave );
+        timer_list.push( vis_time_min );
+        timer_list.push( vis_time_max );
+        timer_list.push( vis_time_ave );
+
+        const auto basedir = BaseClass::outputDirectory().baseDirectoryName() + "/";
+        return timer_list.write( basedir + "proc_time.csv" );
+    }
 
 private:
     void set_min_max_values()
@@ -624,6 +678,26 @@ void InSituVis_setOffset( Adaptor* self, int offx, int offy, int offz )
 void InSituVis_setFinalTimeStep( Adaptor* self, int index )
 {
     self->setFinalTimeStep( index );
+}
+
+void InSituVis_simTimerStart( Adaptor* self )
+{
+    self->simTimer().start();
+}
+
+void InSituVis_simTimerStamp( Adaptor* self )
+{
+    self->simTimer().stamp();
+}
+
+void InSituVis_visTimerStart( Adaptor* self )
+{
+    self->visTimer().start();
+}
+
+void InSituVis_visTimerStamp( Adaptor* self )
+{
+    self->visTimer().stamp();
 }
 
 void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz )
