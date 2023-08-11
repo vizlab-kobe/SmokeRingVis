@@ -378,8 +378,6 @@ public:
 
     bool dump()
     {
-        this->log() << "dump" << std::endl;
-
         if ( !BaseClass::dump() ) return false;
 
         // For each node
