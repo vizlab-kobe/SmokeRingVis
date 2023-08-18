@@ -1,3 +1,9 @@
+/*****************************************************************************/
+/**
+ *  @file   InSituVis.cpp
+ *  @author Taisei Matsushima, Ken Iwata, Naohisa Sakamoto
+ */
+/*****************************************************************************/
 #include <InSituVis/Lib/Adaptor_mpi.h>
 #include <InSituVis/Lib/Viewpoint.h>
 #include <kvs/StructuredVolumeObject>
@@ -15,13 +21,14 @@
 #include <InSituVis/Lib/CubicViewpoint.h>
 #include <InSituVis/Lib/SphericalViewpoint.h>
 #include <InSituVis/Lib/PolyhedralViewpoint.h>
-#include <InSituVis/Lib/StochasticRenderingAdaptor.h>
 #include <InSituVis/Lib/CameraFocusControlledAdaptor_mpi.h>
 #include <InSituVis/Lib/CFCA.h>
 
-/*****************************************************************************/
-// In-situ visualization settings
-/*****************************************************************************/
+/*===========================================================================*/
+/*
+ * In-situ visualization settings
+ */
+/*===========================================================================*/
 
 // Viewpoint
 #define IN_SITU_VIS__VIEWPOINT__FIXED
@@ -38,26 +45,33 @@ using AdaptorBase = InSituVis::mpi::CFCA;
 using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
 #endif
 
-// Parameters
+/*===========================================================================*/
+/*
+ * Parameters
+ */
+/*===========================================================================*/
 namespace Params
 {
 
+// Flags for data output
 struct Output
 {
-    static const auto Image = true;
-    static const auto SubImage = false;
-    static const auto SubImageDepth = false;
-    static const auto SubImageAlpha = false;
-    static const auto Entropies = false;
-    static const auto FrameEntropies = true;
-    static const auto ZoomEntropies = true;
+    static const auto Image = true;          // output rendering images
+    static const auto SubImage = false;      // output sub-images for each process
+    static const auto SubImageDepth = false; // output depth images for each sub-image
+    static const auto SubImageAlpha = false; // output alpha images for each sub-image
+    static const auto Entropies = false;     // output entropy dataset for multiple viewpoint rendering
+    static const auto FrameEntropies = true; // output frame entropy dataset for camera focus determination
+    static const auto ZoomEntropies = true;  // output zoom entropy dataset for zoom level adjustment
 };
+
 const auto EstimateIncludingBox = false;
 const auto VisibleBoundingBox = false;
 const auto kotei = false;
 
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
 const auto AnalysisInterval = 10; // analysis (visuaization) time interval
+const auto EntropyInterval = 1; // entropy calculation time interval
 
 // Viewpoint setting.
 const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
@@ -70,28 +84,37 @@ const auto Viewpoint = InSituVis::SphericalViewpoint{ ViewDim, ViewDir };
 #endif
 
 // Zooming parameters.
-const auto ZoomLevel = 5;
-const auto FrameDivs = kvs::Vec2ui{ 20, 20 };
-//const auto FrameDivs = kvs::Vec2ui{ 20, 20 };
-const auto AutoZoom = true;
-const auto EntropyInterval = 1; // L: entropy calculation time interval
+const auto AutoZoom = true; // flag for auto-zoom mode
+const auto ZoomLevel = 5; // zoom level
+const auto FrameDivs = kvs::Vec2ui{ 20, 20 }; // number of frame subdivisions
 
-// Entropy function
-const auto MixedRatio = 0.0f; // mixed entropy ratio
-auto LightEnt = AdaptorBase::LightnessEntropy();
-auto DepthEnt = AdaptorBase::DepthEntropy();
-auto MixedEnt = AdaptorBase::MixedEntropy( LightEnt, DepthEnt, MixedRatio );
+// Entropy functions.
+//   M(I): Mixed entropy function for the image I
+//       M(I) = a * L(I) + ( 1 - a ) * D(I)
+//     where,
+//       L(I): Lightness entropy function for the image I
+//       D(I): Depth entropy function for the image I
+//       a: weghting factor for the L(I) in [0,1]
+const auto MixedRatio = 0.0f; // mixed entropy ratio (a): M = a * L + ( 1 - a ) * D
+auto LightEnt = AdaptorBase::LightnessEntropy(); // lightness entropy (L)
+auto DepthEnt = AdaptorBase::DepthEntropy(); // depth entropy (D)
+auto MixedEnt = AdaptorBase::MixedEntropy( LightEnt, DepthEnt, MixedRatio ); // mixed entropy (M)
 auto EntropyFunction = MixedEnt;
 //auto EntropyFunction = LightEnt;
 //auto EntropyFunction = DepthEnt;
 
 // Path interpolator
-auto Interpolator = AdaptorBase::Squad();
-//auto Interpolator = ::Adaptor::Slerp();
+auto Interpolator = AdaptorBase::Squad(); // SQUAD
+//auto Interpolator = ::Adaptor::Slerp(); // SLERP
+
 } // end of namespace Params
 
 
-// Adaptor
+/*===========================================================================*/
+/**
+ *  @brief  Adaptor class based on CameraFocusControlledAdaptor.
+ */
+/*===========================================================================*/
 class Adaptor : public AdaptorBase
 {
 public:
@@ -101,9 +124,9 @@ public:
     using Object = kvs::ObjectBase;
 
 private:
-    kvs::Vec3ui m_global_dims{ 0, 0, 0 };
-    kvs::Vec3ui m_offset{ 0, 0, 0 };
-    kvs::ColorMap m_cmap{ 256 };
+    kvs::Vec3ui m_global_dims{ 0, 0, 0 }; ///< resolution of whole volume
+    kvs::Vec3ui m_offset{ 0, 0, 0 }; ///< offset to the sub-volume
+    kvs::ColorMap m_cmap{ 256 }; ///< colormap
     kvs::mpi::StampTimer m_sim_timer{ BaseClass::world() }; ///< timer for sim. process
     kvs::mpi::StampTimer m_vis_timer{ BaseClass::world() }; ///< timer for vis. process
 
@@ -597,30 +620,34 @@ public:
     };
 };
 
-
+/*===========================================================================*/
+/*
+ * C functions for the Fortran module
+ */
+/*===========================================================================*/
 extern "C"
 {
 
-Adaptor* InSituVis_new( const int method )
+// C wrapper for Adaptor class.
+typedef struct { Adaptor impl; } AdaptorImpl;
+
+AdaptorImpl* InSituVis_new( const int method )
 {
+    const auto cmap = kvs::ColorMap::CoolWarm();
+    const auto sub_image = Params::Output::SubImage;
+    const auto sub_depth = Params::Output::SubImageDepth;
+    const auto sub_alpha = Params::Output::SubImageAlpha;
+
     auto* vis = new Adaptor();
-    vis->setOutputImageEnabled(
-        Params::Output::Image );
-    vis->setOutputSubImageEnabled(
-        Params::Output::SubImage,
-        Params::Output::SubImageDepth,
-        Params::Output::SubImageAlpha );
-    vis->setOutputEntropiesEnabled(
-        Params::Output::Entropies );
-    vis->setOutputFrameEntropiesEnabled(
-        Params::Output::FrameEntropies );
-    /*vis->setOutputEvaluationImageEnabled(
-        Params::Output::EvalImage,
-        Params::Output::EvalImageDepth );*/
+    vis->setOutputImageEnabled( Params::Output::Image );
+    vis->setOutputSubImageEnabled( sub_image, sub_depth, sub_alpha );
+    vis->setOutputEntropiesEnabled( Params::Output::Entropies );
+    vis->setOutputFrameEntropiesEnabled( Params::Output::FrameEntropies );
+    //vis->setOutputEvaluationImageEnabled( Params::Output::EvalImage, Params::Output::EvalImageDepth );
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
     vis->setAnalysisInterval( Params::AnalysisInterval );
-    vis->setColorMap( kvs::ColorMap::CoolWarm() );
+    vis->setColorMap( cmap );
     vis->setZoomLevel( Params::ZoomLevel );
     vis->setFrameDivisions( Params::FrameDivs );
     vis->setEntropyInterval( Params::EntropyInterval );
@@ -644,64 +671,64 @@ Adaptor* InSituVis_new( const int method )
     default: break;
     }
 
-    return vis;
+    return (AdaptorImpl*)vis;
 }
 
-void InSituVis_delete( Adaptor* self )
+void InSituVis_delete( AdaptorImpl* self )
 {
     if ( self ) delete self;
 }
 
-void InSituVis_initialize( Adaptor* self )
+void InSituVis_initialize( AdaptorImpl* self )
 {
-    self->initialize();
+    self->impl.initialize();
 }
 
-void InSituVis_finalize( Adaptor* self )
+void InSituVis_finalize( AdaptorImpl* self )
 {
-    self->finalize();
+    self->impl.finalize();
 }
 
-void InSituVis_setGlobalDims( Adaptor* self, int dimx, int dimy, int dimz )
+void InSituVis_setGlobalDims( AdaptorImpl* self, int dimx, int dimy, int dimz )
 {
-    self->setGlobalDims( kvs::Vec3ui( dimx, dimy, dimz ) );
+    self->impl.setGlobalDims( kvs::Vec3ui( dimx, dimy, dimz ) );
 }
 
-void InSituVis_setOffset( Adaptor* self, int offx, int offy, int offz )
+void InSituVis_setOffset( AdaptorImpl* self, int offx, int offy, int offz )
 {
-    self->setOffset( kvs::Vec3ui( offx, offy, offz ) );
+    self->impl.setOffset( kvs::Vec3ui( offx, offy, offz ) );
 }
 
-void InSituVis_setFinalTimeStep( Adaptor* self, int index )
+void InSituVis_setFinalTimeStep( AdaptorImpl* self, int index )
 {
-    self->setFinalTimeStep( index );
+    self->impl.setFinalTimeStep( index );
 }
 
-void InSituVis_simTimerStart( Adaptor* self )
+void InSituVis_simTimerStart( AdaptorImpl* self )
 {
-    self->simTimer().start();
+    self->impl.simTimer().start();
 }
 
-void InSituVis_simTimerStamp( Adaptor* self )
+void InSituVis_simTimerStamp( AdaptorImpl* self )
 {
-    self->simTimer().stamp();
+    self->impl.simTimer().stamp();
 }
 
-void InSituVis_visTimerStart( Adaptor* self )
+void InSituVis_visTimerStart( AdaptorImpl* self )
 {
-    self->visTimer().start();
+    self->impl.visTimer().start();
 }
 
-void InSituVis_visTimerStamp( Adaptor* self )
+void InSituVis_visTimerStamp( AdaptorImpl* self )
 {
-    self->visTimer().stamp();
+    self->impl.visTimer().stamp();
 }
 
-void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz )
+void InSituVis_put( AdaptorImpl* self, double* values, int dimx, int dimy, int dimz )
 {
     const auto dims = kvs::Vec3ui( dimx, dimy, dimz );
     const auto size = size_t( dimx * dimy * dimz );
-    const auto offs = self->offset();
+    const auto offs = self->impl.offset();
     const auto min_coord = kvs::Vec3{ offs };
     const auto max_coord = kvs::Vec3{ offs + dims } - kvs::Vec3{ 1, 1, 1 };
 
@@ -714,12 +741,12 @@ void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz 
     volume.setMinMaxObjectCoords( min_coord, max_coord );
     volume.setMinMaxExternalCoords( min_coord, max_coord );
 
-    self->put( volume );
+    self->impl.put( volume );
 }
 
-void InSituVis_exec( Adaptor* self, double time_value, int time_index )
+void InSituVis_exec( AdaptorImpl* self, double time_value, int time_index )
 {
-    self->exec( { float( time_value ), size_t( time_index ) } );
+    self->impl.exec( { float( time_value ), size_t( time_index ) } );
 }
 
 } // end of extern "C"
