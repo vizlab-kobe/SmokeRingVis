@@ -56,13 +56,10 @@ struct Output
     static const auto ZoomEntropies = true;  // output zoom entropy dataset for zoom level adjustment
 };
 
-const auto EstimateIncludingBox = false;
-const auto VisibleBoundingBox = false;
-const auto kotei = false;
-
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
 const auto AnalysisInterval = 50; // analysis (visuaization) time interval
 const auto EntropyInterval = 1; // entropy calculation time interval
+const auto VisibleBoundingBox = true; // bounding box visibility
 
 // Viewpoint setting.
 const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
