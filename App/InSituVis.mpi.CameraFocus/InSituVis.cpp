@@ -23,15 +23,6 @@
 #include <InSituVis/Lib/PolyhedralViewpoint.h>
 #include <InSituVis/Lib/CameraFocusControlledAdaptor_mpi.h>
 
-/*===========================================================================*/
-/*
- * In-situ visualization settings
- */
-/*===========================================================================*/
-
-// Viewpoint
-#define IN_SITU_VIS__VIEWPOINT__FIXED
-//#define IN_SITU_VIS__VIEWPOINT__ESTIMATION
 
 // Base adaptor
 using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
@@ -57,22 +48,21 @@ struct Output
 };
 
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
-const auto AnalysisInterval = 50; // analysis (visuaization) time interval
-const auto EntropyInterval = 1; // entropy calculation time interval
-const auto VisibleBoundingBox = true; // bounding box visibility
+const auto AnalysisInterval = 50;            // analysis (visuaization) time interval
+const auto EntropyInterval = 1;              // entropy calculation time interval
+const auto VisibleBoundingBox = true;        // bounding box visibility
+const auto ViewEstimation = false;           // flag for viewpoint estimation
+const auto AutoZoom = true;                  // flag for auto-zoom mode
 
 // Viewpoint setting.
-const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
-#if defined( IN_SITU_VIS__VIEWPOINT__FIXED )
-const auto ViewPos = kvs::Vec3{ -8, 0, 8 }; // viewpoint position
-const auto Viewpoint = InSituVis::Viewpoint{ { ViewDir, ViewPos } };
-#elif defined( IN_SITU_VIS__VIEWPOINT__ESTIMATION )
-const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 }; // viewpoint dimension
-const auto Viewpoint = InSituVis::SphericalViewpoint{ ViewDim, ViewDir };
-#endif
+onst auto ViewPos = kvs::Vec3{ -8, 0, 8 };   // viewpoint position for fixed view
+const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 };// viewpoint dimension for view estimation
+cconst auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
+const auto Viewpoint = ViewEstimation ?
+    InSituVis::SphericalViewpoint{ ViewDim, ViewDir } :
+    InSituVis::Viewpoint{ { ViewDir, ViewPos } };
 
-// Zooming parameters.
-const auto AutoZoom = true; // flag for auto-zoom mode
+// Focus and zoom setting.
 const auto ZoomLevel = 5; // zoom level
 const auto FrameDivs = kvs::Vec2ui{ 20, 20 }; // number of frame subdivisions
 
@@ -84,9 +74,9 @@ const auto FrameDivs = kvs::Vec2ui{ 20, 20 }; // number of frame subdivisions
 //       D(I): Depth entropy function for the image I
 //       a: weghting factor for the L(I) in [0,1]
 const auto MixedRatio = 0.0f; // mixed entropy ratio (a): M = a * L + ( 1 - a ) * D
-auto LightEnt = AdaptorBase::LightnessEntropy(); // lightness entropy (L)
-auto DepthEnt = AdaptorBase::DepthEntropy(); // depth entropy (D)
-auto MixedEnt = AdaptorBase::MixedEntropy( LightEnt, DepthEnt, MixedRatio ); // mixed entropy (M)
+auto LightEnt = AdaptorBase::LightnessEntropy(); // L(I)
+auto DepthEnt = AdaptorBase::DepthEntropy(); // D(I)
+auto MixedEnt = AdaptorBase::MixedEntropy( LightEnt, DepthEnt, MixedRatio ); // M(I)
 auto EntropyFunction = MixedEnt; // MixedEnt, LightEnt, or DepthEnt
 
 // Path interpolator
@@ -485,7 +475,6 @@ AdaptorImpl* InSituVis_new( const int method )
     vis->setOutputSubImageEnabled( sub_image, sub_depth, sub_alpha );
     vis->setOutputEntropiesEnabled( Params::Output::Entropies );
     vis->setOutputFrameEntropiesEnabled( Params::Output::FrameEntropies );
-    //vis->setOutputEvaluationImageEnabled( Params::Output::EvalImage, Params::Output::EvalImageDepth );
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
     vis->setAnalysisInterval( Params::AnalysisInterval );
