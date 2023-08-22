@@ -47,26 +47,25 @@ struct Output
     static const auto ZoomEntropies = true;  // output zoom entropy dataset for zoom level adjustment
 };
 
+// Basic parameters
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
 const auto AnalysisInterval = 50;            // analysis (visuaization) time interval
 const auto EntropyInterval = 1;              // entropy calculation time interval
 const auto VisibleBoundingBox = true;        // bounding box visibility
 const auto ViewEstimation = false;           // flag for viewpoint estimation
 const auto AutoZoom = true;                  // flag for auto-zoom mode
+const auto ZoomLevel = 5;                    // zoom level
+const auto FrameDivs = kvs::Vec2ui{ 20, 20 }; // number of frame subdivisions
 
-// Viewpoint setting.
-onst auto ViewPos = kvs::Vec3{ -8, 0, 8 };   // viewpoint position for fixed view
+// Viewpoint settings
+const auto ViewPos = kvs::Vec3{ -8, 0, 8 };   // viewpoint position for fixed view
 const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 };// viewpoint dimension for view estimation
-cconst auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
+const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 const auto Viewpoint = ViewEstimation ?
     InSituVis::SphericalViewpoint{ ViewDim, ViewDir } :
     InSituVis::Viewpoint{ { ViewDir, ViewPos } };
 
-// Focus and zoom setting.
-const auto ZoomLevel = 5; // zoom level
-const auto FrameDivs = kvs::Vec2ui{ 20, 20 }; // number of frame subdivisions
-
-// Entropy functions.
+// Entropy functions
 //   M(I): Mixed entropy function for the image I
 //       M(I) = a * L(I) + ( 1 - a ) * D(I)
 //     where,
