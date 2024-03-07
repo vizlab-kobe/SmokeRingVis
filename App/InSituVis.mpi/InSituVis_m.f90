@@ -16,7 +16,6 @@ module InSituVis_m
      private
      type( C_ptr ) :: ptr = C_NULL_ptr
    contains
-     final :: InSituVis_destroy ! Destructor
      procedure :: delete => InSituVis_delete
      procedure :: initialize => InSituVis_initialize
      procedure :: finalize => InSituVis_finalize
@@ -28,7 +27,7 @@ module InSituVis_m
 
   ! Constructor
   interface InSituVis
-     procedure InSituVis_new
+     module procedure InSituVis_new
   end interface InSituVis
 
   ! Visualization method
@@ -43,7 +42,7 @@ module InSituVis_m
   private
   interface
      function C_InSituVis_new( method )&
-          bind( C, name="InSituVis_new" )
+          bind( C, name='InSituVis_new' )
        import
        type( C_ptr )           :: C_InSituVis_new
        integer( C_int ), value :: method
@@ -113,29 +112,13 @@ contains
     InSituVis_new % ptr = C_InSituVis_new( method )
   end function InSituVis_new
 
-  subroutine InSituVis_destroy( this )
+  subroutine InSituVis_delete( this )
     implicit none
-    type( InSituVis ) :: this
+    class( InSituVis ), intent( inout ) :: this
     if ( c_associated( this % ptr ) ) then
        call C_InSituVis_delete( this % ptr )
        this % ptr = C_NULL_ptr
     endif
-  end subroutine InSituVis_destroy
-
-!  subroutine InSituVis_destroy_polymorph( this )
-!    implicit none
-!    class( InSituVis ) :: this
-!    if ( c_associated( this % ptr ) ) then
-!       call C_InSituVis_delete( this % ptr )
-!       this % ptr = C_NULL_ptr
-!    endif
-!  end subroutine InSituVis_destroy
-
-  subroutine InSituVis_delete( this )
-    implicit none
-    class( InSituVis ) :: this
-    call C_InSituVis_delete( this % ptr )
-    this % ptr = C_NULL_ptr
   end subroutine InSituVis_delete
 
   subroutine InSituVis_initialize( this )

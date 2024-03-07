@@ -260,10 +260,7 @@ public:
 extern "C"
 {
 
-// C wrapper for Adaptor class.
-typedef struct { Adaptor impl; } AdaptorImpl;
-
-AdaptorImpl* InSituVis_new( const int method )
+Adaptor* InSituVis_new( const int method )
 {
     const auto cmap = kvs::ColorMap::CoolWarm();
     const auto sub_image = Params::Output::SubImage;
@@ -292,39 +289,39 @@ AdaptorImpl* InSituVis_new( const int method )
     default: break;
     }
 
-    return (AdaptorImpl*)vis;
+    return vis;
 }
 
-void InSituVis_delete( AdaptorImpl* self )
+void InSituVis_delete( Adaptor* self )
 {
     if ( self ) delete self;
 }
 
-void InSituVis_initialize( AdaptorImpl* self )
+void InSituVis_initialize( Adaptor* self )
 {
-    self->impl.initialize();
+    self->initialize();
 }
 
-void InSituVis_finalize( AdaptorImpl* self )
+void InSituVis_finalize( Adaptor* self )
 {
-    self->impl.finalize();
+    self->finalize();
 }
 
-void InSituVis_setGlobalDims( AdaptorImpl* self, int dimx, int dimy, int dimz )
+void InSituVis_setGlobalDims( Adaptor* self, int dimx, int dimy, int dimz )
 {
-    self->impl.setGlobalDims( kvs::Vec3ui( dimx, dimy, dimz ) );
+    self->setGlobalDims( kvs::Vec3ui( dimx, dimy, dimz ) );
 }
 
-void InSituVis_setOffset( AdaptorImpl* self, int offx, int offy, int offz )
+void InSituVis_setOffset( Adaptor* self, int offx, int offy, int offz )
 {
-    self->impl.setOffset( kvs::Vec3ui( offx, offy, offz ) );
+    self->setOffset( kvs::Vec3ui( offx, offy, offz ) );
 }
 
-void InSituVis_put( AdaptorImpl* self, double* values, int dimx, int dimy, int dimz )
+void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz )
 {
     const auto dims = kvs::Vec3ui( dimx, dimy, dimz );
     const auto size = size_t( dimx * dimy * dimz );
-    const auto offs = self->impl.offset();
+    const auto offs = self->offset();
     const auto min_coord = kvs::Vec3{ offs };
     const auto max_coord = kvs::Vec3{ offs + dims } - kvs::Vec3{ 1, 1, 1 };
 
@@ -337,12 +334,12 @@ void InSituVis_put( AdaptorImpl* self, double* values, int dimx, int dimy, int d
     volume.setMinMaxObjectCoords( min_coord, max_coord );
     volume.setMinMaxExternalCoords( min_coord, max_coord );
 
-    self->impl.put( volume );
+    self->put( volume );
 }
 
-void InSituVis_exec( AdaptorImpl* self, double time_value, int time_index )
+void InSituVis_exec( Adaptor* self, double time_value, int time_index )
 {
-    self->impl.exec( { float( time_value ), size_t( time_index ) } );
+    self->exec( { float( time_value ), size_t( time_index ) } );
 }
 
 } // end of extern "C"
