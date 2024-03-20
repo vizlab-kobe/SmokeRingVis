@@ -31,8 +31,11 @@ program main_m
 !  use solver_m     !! ナビエ・ストークス方程式ソルバ
 !  use ut_m         !! ユーティリティ
 !  use vis2d_m      !! 断面可視化
-  use smoke_ring_m
-  use InSituVis_m
+  ! IN_SITU_VIS: Modules
+  ! {
+  use smoke_ring_m  !! Simulation solver module
+  use InSituVis_m   !! In-situ visualization module
+  ! }
   implicit none    !! 暗黙の型宣言無効化。必須
 
   real(DR) :: dt, time   !! 時間刻み幅と時刻
@@ -43,7 +46,7 @@ program main_m
   ! {
   type( InSituVis ) :: insitu_vis       !! in-situ vis. adaptor
   integer           :: dimx, dimy, dimz !! resolution of local grid
-  integer           :: offx, offy, offz !! offset
+  integer           :: offx, offy, offz !! offset to the local volume
   ! }
 
                                                    call kutimer__start('main  ')
@@ -82,16 +85,17 @@ program main_m
   offx = NXPP * ( mod( parallel % rank % me, NPROC_X ) )
   offy = NYPP * ( mod( parallel % rank % me, NPROC_X * NPROC_Y ) / NPROC_X )
   offz = NZPP * ( parallel % rank % me / ( NPROC_X * NPROC_Y ) )
-
-  !insitu_vis = InSituVis( OrthoSlice ) ! OrthoSlice, Isosurface, or VolumeRendering
   insitu_vis = InSituVis( Isosurface ) ! OrthoSlice, Isosurface, or VolumeRendering
-  !insitu_vis = InSituVis( VolumeRendering ) ! OrthoSlice, Isosurface, or VolumeRendering
   call insitu_vis % initialize()
   call insitu_vis % setGlobalDims( NX_GLOBAL, NY_GLOBAL, NZ_GLOBAL )
   call insitu_vis % setOffset( offx, offy, offz )
+  call insitu_vis % setFinalTimeStep( job % nloop_end )
   ! }
 
   do while( Job%karte == "fine" )                 ;call kutimer__count
+     call insitu_vis % simTimerStart()
+     ! {
+
     !! このシミュレーションのメインループ。ジョブカルテが
     !! 「健康 (fine)」状態である限りシミュレーションを続行する。 
     Job%nloop = Job%nloop + 1  
@@ -112,11 +116,16 @@ program main_m
 !    call vis2d%draw( time, Job%nloop, fluid )     ;call kutimer__('main  ','vis2  ')
       !! シミュレーション領域の断面図をSVGで出力する。
 
+    call insitu_vis % simTimerStamp()
+    ! }
+
     ! IN_SITU_VIS: Put & Execute
     ! {
+    call insitu_vis % visTimerStart()
     !call insitu_vis % put( fluid % pressure, dimx, dimy, dimz )
     call insitu_vis % put( get_enstrophy( fluid ), dimx, dimy, dimz )
     call insitu_vis % exec( time, job % nloop )
+    call insitu_vis % visTimerStamp()
     ! }
 
     if ( Job%nloop >= Job%nloop_end ) then

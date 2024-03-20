@@ -1,3 +1,9 @@
+/*****************************************************************************/
+/**
+ *  @file   InSituVis.cpp
+ *  @author Taisei Matsushima, Ken Iwata, Naohisa Sakamoto
+ */
+/*****************************************************************************/
 #include <InSituVis/Lib/Adaptor_mpi.h>
 #include <InSituVis/Lib/Viewpoint.h>
 #include <kvs/StructuredVolumeObject>
@@ -8,123 +14,81 @@
 #include <kvs/OrthoSlice>
 #include <kvs/Bounds>
 #include <kvs/Coordinate>
+#include <kvs/StampTimer>
+#include <kvs/StampTimerList>
 #include <InSituVis/Lib/Adaptor.h>
 #include <InSituVis/Lib/Viewpoint.h>
 #include <InSituVis/Lib/CubicViewpoint.h>
 #include <InSituVis/Lib/SphericalViewpoint.h>
 #include <InSituVis/Lib/PolyhedralViewpoint.h>
-#include <InSituVis/Lib/StochasticRenderingAdaptor.h>
 #include <InSituVis/Lib/CameraFocusControlledAdaptor_mpi.h>
 
-/*****************************************************************************/
-// In-situ visualization settings
-/*****************************************************************************/
 
-// Adaptor setting
-//----------------------------------------------------------------------------
-#define IN_SITU_VIS__ADAPTOR__CAMERA_PATH_CONTROLL
-//#define IN_SITU_VIS__ADAPTOR__STOCHASTIC_RENDERING
+// Base adaptor
+using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
 
-// Pipeline setting
-//----------------------------------------------------------------------------
-//#define IN_SITU_VIS__PIPELINE__ORTHO_SLICE
-#define IN_SITU_VIS__PIPELINE__ISOSURFACE
-//#define IN_SITU_VIS__PIPELINE__EXTERNAL_FACE
-//#define IN_SITU_VIS__PIPELINE__WHOLE_MIN_MAX_VALUES
-
-// Viewpoint setting
-//----------------------------------------------------------------------------
-#define IN_SITU_VIS__VIEWPOINT__SINGLE
-//#define IN_SITU_VIS__VIEWPOINT__MULTIPLE_SPHERICAL
-//#define IN_SITU_VIS__VIEWPOINT__MULTIPLE_POLYHEDRAL
-
-
-const auto Pos = [] ( const float r )
-{
-    const auto tht = kvs::Math::pi / 4.0f;
-    const auto phi = kvs::Math::pi / 4.0f;
-    const auto x = static_cast<float>( r * std::sin( tht ) * std::sin( phi ) );
-    const auto y = static_cast<float>( r * std::cos( tht ) );
-    const auto z = static_cast<float>( r * std::sin( tht ) * std::cos( phi ) );
-    return kvs::Vec3{ x, y, z };
-};
-
-
-// Parameters
+/*===========================================================================*/
+/*
+ * Parameters
+ */
+/*===========================================================================*/
 namespace Params
 {
 
-    struct Output
+// Flags for data output
+struct Output
 {
-    static const auto Image = true;
-    static const auto SubImage = false;
-    static const auto SubImageDepth = false;
-    static const auto SubImageAlpha = false;
-    static const auto Entropies = true;
-    static const auto FrameEntropies = true;
-
+    static const auto Image = true;          // output rendering images
+    static const auto SubImage = false;      // output sub-images for each process
+    static const auto SubImageDepth = false; // output depth images for each sub-image
+    static const auto SubImageAlpha = false; // output alpha images for each sub-image
+    static const auto Entropies = false;     // output entropy dataset for multiple viewpoint rendering
+    static const auto FrameEntropies = true; // output frame entropy dataset for camera focus determination
+    static const auto ZoomEntropies = true;  // output zoom entropy dataset for zoom level adjustment
 };
-const auto VisibleBoundingBox = true;
-const auto VisibleBoundaryMesh = false;
 
+// Basic parameters
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
-const auto AnalysisInterval = 10; // analysis (visuaization) time interval
-//onst auto ViewPos = kvs::Vec3{ 7, 5, 6 }; // viewpoint position
-const auto ViewRad = 12.0f; // viewpoint radius
-const auto ViewPos = Pos( ViewRad ); // viewpoint position
+const auto AnalysisInterval = 50;            // analysis (visuaization) time interval
+const auto EntropyInterval = 1;              // entropy calculation time interval
+const auto VisibleBoundingBox = true;        // bounding box visibility
+const auto ViewEstimation = false;           // flag for viewpoint estimation
+const auto AutoZoom = true;                  // flag for auto-zoom mode
+const auto ZoomLevel = 5;                    // zoom level
+const auto FrameDivs = kvs::Vec2ui{ 20, 20 }; // number of frame subdivisions
+
+// Viewpoint settings
+const auto ViewPos = kvs::Vec3{ -8, 0, 8 };   // viewpoint position for fixed view
+const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 };// viewpoint dimension for view estimation
 const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
-const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 }; // viewpoint dimension
-kvs::Vec3 m_base_position = {0.0f,12.0f,0.0f};
-auto xyz_to_rtp = [] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
-    const float x = xyz[0];
-    const float y = xyz[1];
-    const float z = xyz[2];
-    const float r = sqrt( x * x + y * y + z * z );
-    const float t = std::acos( y / r );
-    const float p = std::atan2( x, z );
-    return kvs::Vec3( r, t, p );
-};
+const auto Viewpoint = ViewEstimation ?
+    InSituVis::SphericalViewpoint{ ViewDim, ViewDir } :
+    InSituVis::Viewpoint{ { ViewDir, ViewPos } };
 
-auto calc_rotation = [] ( const kvs::Vec3& xyz ) -> kvs::Quaternion {
-    const auto rtp = xyz_to_rtp( xyz );
-    const float phi = rtp[2];
-    const auto axis = kvs::Vec3( { 0.0f, 1.0f, 0.0f } );
-    auto q_phi = kvs::Quaternion( axis, phi );
-    const auto q_theta = kvs::Quaternion::RotationQuaternion( m_base_position, xyz );
-    return q_theta * q_phi;
-};
-auto rotation = calc_rotation(ViewPos);
-const auto Viewpoint = InSituVis::Viewpoint{ { 000000, ViewDir, ViewPos , kvs::Vec3{0,1,0}, rotation} };
-const auto ViewpointSpherical = InSituVis::SphericalViewpoint{ ViewDim, ViewDir };
-const auto ViewpointPolyhedral = InSituVis::PolyhedralViewpoint{ ViewDim, ViewDir };
-
-// For IN_SITU_VIS__ADAPTOR__CAMERA_FOCUS_CONTROLL
-const auto ZoomLevel = 1;
-const auto FrameDivs = kvs::Vec2ui{ 40, 40 };
-const auto EntropyInterval = 30; // L: entropy calculation time interval
-//const auto EntropyInterval = 2; // L: entropy calculation time interval
-const auto MixedRatio = 0.5f; // mixed entropy ratio
-//const auto MixedRatio = 0.75f; // mixed entropy ratio
-auto LightEnt = InSituVis::mpi::CameraFocusControlledAdaptor::LightnessEntropy();
-auto DepthEnt = InSituVis::mpi::CameraFocusControlledAdaptor::DepthEntropy();
-auto MixedEnt = InSituVis::mpi::CameraFocusControlledAdaptor::MixedEntropy( LightEnt, DepthEnt, MixedRatio );
-
-// Entropy function
-auto EntropyFunction = MixedEnt;
-//auto EntropyFunction = LightEnt;
-//auto EntropyFunction = DepthEnt;
+// Entropy functions
+//   M(I): Mixed entropy function for the image I
+//       M(I) = a * L(I) + ( 1 - a ) * D(I)
+//     where,
+//       L(I): Lightness entropy function for the image I
+//       D(I): Depth entropy function for the image I
+//       a: weghting factor for the L(I) in [0,1]
+const auto MixedRatio = 0.0f; // mixed entropy ratio (a): M = a * L + ( 1 - a ) * D
+auto LightEnt = AdaptorBase::LightnessEntropy(); // L(I)
+auto DepthEnt = AdaptorBase::DepthEntropy(); // D(I)
+auto MixedEnt = AdaptorBase::MixedEntropy( LightEnt, DepthEnt, MixedRatio ); // M(I)
+auto EntropyFunction = MixedEnt; // MixedEnt, LightEnt, or DepthEnt
 
 // Path interpolator
-auto Interpolator = InSituVis::mpi::CameraFocusControlledAdaptor::Squad();
-//auto Interpolator = ::Adaptor::Slerp();
+auto Interpolator = AdaptorBase::Squad(); // Squad or Slerp
 
-// For IN_SITU_VIS__ADAPTOR__STOCHASTIC_RENDERING
-const auto Repeats = 50; // number of repetitions for stochastic rendering
-const auto BoundaryMeshOpacity = 30; // opacity value [0-255] of boundary mesh
 } // end of namespace Params
 
-// Adaptor
-using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
+
+/*===========================================================================*/
+/**
+ *  @brief  Adaptor class based on CameraFocusControlledAdaptor.
+ */
+/*===========================================================================*/
 class Adaptor : public AdaptorBase
 {
 public:
@@ -134,22 +98,26 @@ public:
     using Object = kvs::ObjectBase;
 
 private:
-    kvs::Vec3ui m_global_dims{ 0, 0, 0 };
-    kvs::Vec3ui m_offset{ 0, 0, 0 };
-    kvs::ColorMap m_cmap{ 256 };
-    size_t m_final_time_step_index = 0;
+    kvs::Vec3ui m_global_dims{ 0, 0, 0 }; ///< resolution of whole volume
+    kvs::Vec3ui m_offset{ 0, 0, 0 }; ///< offset to the sub-volume
+    kvs::ColorMap m_cmap{ 256 }; ///< colormap
+    kvs::mpi::StampTimer m_sim_timer{ BaseClass::world() }; ///< timer for sim. process
+    kvs::mpi::StampTimer m_vis_timer{ BaseClass::world() }; ///< timer for vis. process
 
 public:
     Adaptor() = default;
     virtual ~Adaptor() = default;
 
-    const kvs::Vec3ui& globalDims() const { return m_global_dims; }
-    const kvs::Vec3ui& offset() const { return m_offset; }
-    const kvs::ColorMap& colorMap() const { return m_cmap; }
+    const kvs::Vec3ui globalDims() const { return m_global_dims; }
+    const kvs::Vec3ui offset() const { return m_offset; }
+    const kvs::ColorMap colorMap() const { return m_cmap; }
 
     void setGlobalDims( const kvs::Vec3ui& dims ) { m_global_dims = dims; }
     void setOffset( const kvs::Vec3ui& offs ) { m_offset = offs; }
     void setColorMap( const kvs::ColorMap& cmap ) { m_cmap = cmap; }
+
+    kvs::mpi::StampTimer& simTimer() { return m_sim_timer; }
+    kvs::mpi::StampTimer& visTimer() { return m_vis_timer; }
 
     void exec( const SimTime sim_time )
     {
@@ -157,12 +125,152 @@ public:
         this->set_global_bounds();
         BaseClass::exec( sim_time );
     }
-    void setFinalTimeStepIndex( size_t index )
+
+    void execRendering()
     {
-        m_final_time_step_index = index;
-    #if defined( IN_SITU_VIS__ADAPTOR__CAMERA_PATH_CONTROLL )
-        this->setFinalTimeStep( m_final_time_step_index );
-    #endif
+        if ( !Params::VisibleBoundingBox )
+        {
+            BaseClass::execRendering();
+            return;
+        }
+
+        auto* bbox = kvs::LineObject::DownCast( BaseClass::screen().scene()->object( "Bounds" ) );
+        if ( bbox && Params::VisibleBoundingBox ) { bbox->setVisible( false ); }
+
+        BaseClass::execRendering();
+
+        const bool visible = BaseClass::world().isRoot();
+        if ( bbox ) { bbox->setVisible( visible && Params::VisibleBoundingBox );}
+
+        if ( BaseClass::isEntropyStep() )
+        {
+            const auto index = BaseClass::maxIndex();
+            const auto focus = BaseClass::maxFocusPoint();
+            auto location = BaseClass::focusedLocation( BaseClass::viewpoint().at( index ), focus );
+            const auto zoom_level = BaseClass::zoomLevel();
+            auto p = location.position;
+            for ( size_t level = 0; level < zoom_level; level++ )
+            {
+                // Update camera position.
+                auto t = static_cast<float>( level ) / static_cast<float>( zoom_level );
+                location.position = ( 1 - t ) * p + t * focus;
+
+                // Output the rendering images and the heatmap of entropies.
+                if ( Params::AutoZoom == false )
+                {
+                    auto frame_buffer =  BaseClass::readback( location );
+                    if ( BaseClass::world().isRoot() )
+                    {
+                        if ( BaseClass::isOutputImageEnabled() )
+                        {
+                            BaseClass::outputColorImage( location, frame_buffer, level );
+                        }
+                    }
+                }
+            }
+            if ( Params::AutoZoom )
+            {
+                location = BaseClass::viewpoint().at( index );
+                auto focused_location = BaseClass::focusedLocation( location , focus );
+                focused_location.position = BaseClass::estimatedZoomPosition();
+                focused_location.rotation = BaseClass::maxRotation();
+                const auto level = BaseClass::estimatedZoomLevel();
+                auto frame_buffer = BaseClass::readback( focused_location );
+                if ( BaseClass::world().isRoot() )
+                {
+                    if ( BaseClass::isOutputImageEnabled() )
+                    {
+                        BaseClass::outputColorImage( focused_location, frame_buffer, level );
+                    }
+                }
+            }
+        }
+        else
+        {
+            const auto focus = BaseClass::maxFocusPoint();
+            auto location = BaseClass::erpLocation( focus );
+            const auto zoom_level = BaseClass::zoomLevel();
+            const auto p = location.position;
+            for ( size_t level = 0; level < zoom_level; level++ )
+            {
+                auto t = static_cast<float>( level ) / static_cast<float>( zoom_level );
+                location.position = ( 1 - t ) * p + t * focus;
+
+                if ( !Params::AutoZoom )
+                {
+                    auto frame_buffer = BaseClass::readback( location );
+                    // Output the rendering images and the heatmap of entropies.
+                    if ( BaseClass::world().isRoot() )
+                    {
+                        if ( BaseClass::isOutputImageEnabled() )
+                        {
+                            BaseClass::outputColorImage( location, frame_buffer, level );
+                            //BaseClass::outputDepthImage( location, frame_buffer, level );
+                        }
+                    }
+                }
+            }
+            if ( Params::AutoZoom )
+            {
+                const auto focus = BaseClass::erpFocus();
+                auto bestlocation = BaseClass::erpLocation( focus );
+                const auto level = BaseClass::estimatedZoomLevel();
+                auto frame_buffer = BaseClass::readback( bestlocation );
+
+                // Output the rendering images and the heatmap of entropies.
+                if ( BaseClass::world().isRoot() )
+                {
+                    if ( BaseClass::isOutputImageEnabled() )
+                    {
+                        BaseClass::outputColorImage( bestlocation, frame_buffer, level );
+                    }
+                }
+            }
+        }
+    }
+
+    bool dump()
+    {
+        if ( !BaseClass::dump() ) return false;
+
+        // For each node
+        m_sim_timer.setTitle( "Sim time" );
+        m_vis_timer.setTitle( "Vis time" );
+
+        const std::string rank = kvs::String::From( this->world().rank(), 4, '0' );
+        const std::string subdir = BaseClass::outputDirectory().name() + "/";
+        kvs::StampTimerList timer_list;
+        timer_list.push( m_sim_timer );
+        timer_list.push( m_vis_timer );
+        if ( !timer_list.write( subdir + "proc_time_" + rank + ".csv" ) ) return false;
+
+        // For root node
+        auto sim_time_min = m_sim_timer; sim_time_min.reduceMin();
+        auto sim_time_max = m_sim_timer; sim_time_max.reduceMax();
+        auto sim_time_ave = m_sim_timer; sim_time_ave.reduceAve();
+        auto vis_time_min = m_vis_timer; vis_time_min.reduceMin();
+        auto vis_time_max = m_vis_timer; vis_time_max.reduceMax();
+        auto vis_time_ave = m_vis_timer; vis_time_ave.reduceAve();
+
+        if ( !this->world().isRoot() ) return true;
+
+        sim_time_min.setTitle( "Sim time (min)" );
+        sim_time_max.setTitle( "Sim time (max)" );
+        sim_time_ave.setTitle( "Sim time (ave)" );
+        vis_time_min.setTitle( "Vis time (min)" );
+        vis_time_max.setTitle( "Vis time (max)" );
+        vis_time_ave.setTitle( "Vis time (ave)" );
+
+        timer_list.clear();
+        timer_list.push( sim_time_min );
+        timer_list.push( sim_time_max );
+        timer_list.push( sim_time_ave );
+        timer_list.push( vis_time_min );
+        timer_list.push( vis_time_max );
+        timer_list.push( vis_time_ave );
+
+        const auto basedir = BaseClass::outputDirectory().baseDirectoryName() + "/";
+        return timer_list.write( basedir + "proc_time.csv" );
     }
 
 private:
@@ -200,7 +308,8 @@ private:
             dummy.setMinMaxObjectCoords( min_coord, max_coord );
             dummy.setMinMaxExternalCoords( min_coord, max_coord );
 
-            const bool visible = BaseClass::isAlphaBlendingEnabled() ? false : BaseClass::world().isRoot();
+            //const bool visible = BaseClass::isAlphaBlendingEnabled() ? false : BaseClass::world().isRoot();
+            const bool visible = false;
             kvs::Bounds bounds( kvs::RGBColor::Black(), 2.0f );
             auto* object = bounds.outputLineObject( &dummy );
             object->setName( "Bounds" );
@@ -273,28 +382,16 @@ public:
             auto n = kvs::Isosurface::VertexNormal;
             auto d = true;
 
-            auto i0 = kvs::Math::Mix( min_value, max_value, 0.1 );
-            auto i1 = kvs::Math::Mix( min_value, max_value, 0.2 );
-            auto i2 = kvs::Math::Mix( min_value, max_value, 0.5 );
-            auto i3 = kvs::Math::Mix( min_value, max_value, 0.9 );
-            auto* o0 = new kvs::Isosurface( &volume, i0, n, d, t );
-            auto* o1 = new kvs::Isosurface( &volume, i1, n, d, t );
-            auto* o2 = new kvs::Isosurface( &volume, i2, n, d, t );
-            auto* o3 = new kvs::Isosurface( &volume, i3, n, d, t );
-            o0->setName( "Isosurface0" );
-            o1->setName( "Isosurface1" );
-            o2->setName( "Isosurface2" );
-            o3->setName( "Isosurface3" );
+            auto i = kvs::Math::Mix( min_value, max_value, 0.1 );
+            auto* o = new kvs::Isosurface( &volume, i, n, d, t );
+            o->setName( "Isosurface" );
 
             // Register object and renderer to screen
             kvs::Light::SetModelTwoSide( true );
-            if ( screen.scene()->hasObject( "Isosurface0" ) )
+            if ( screen.scene()->hasObject( "Isosurface" ) )
             {
                 // Update the objects.
-                screen.scene()->replaceObject( "Isosurface0", o0 );
-                screen.scene()->replaceObject( "Isosurface1", o1 );
-                screen.scene()->replaceObject( "Isosurface2", o2 );
-                screen.scene()->replaceObject( "Isosurface3", o3 );
+                screen.scene()->replaceObject( "Isosurface", o );
             }
             else
             {
@@ -302,18 +399,9 @@ public:
                 //screen.registerObject( o0, new kvs::Bounds() );
 
                 // Register the objects with renderer.
-                auto* r0 = new kvs::glsl::PolygonRenderer();
-                auto* r1 = new kvs::glsl::PolygonRenderer();
-                auto* r2 = new kvs::glsl::PolygonRenderer();
-                auto* r3 = new kvs::glsl::PolygonRenderer();
-                r0->setTwoSideLightingEnabled( true );
-                r1->setTwoSideLightingEnabled( true );
-                r2->setTwoSideLightingEnabled( true );
-                r3->setTwoSideLightingEnabled( true );
-                screen.registerObject( o0, r0 );
-                screen.registerObject( o1, r1 );
-                screen.registerObject( o2, r2 );
-                screen.registerObject( o3, r3 );
+                auto* r = new kvs::glsl::PolygonRenderer();
+                r->setTwoSideLightingEnabled( true );
+                screen.registerObject( o, r );
             }
         };
     };
@@ -363,36 +451,40 @@ public:
     };
 };
 
-
+/*===========================================================================*/
+/*
+ * C functions for the Fortran module
+ */
+/*===========================================================================*/
 extern "C"
 {
 
-Adaptor* InSituVis_new( const int method )
+// C wrapper for Adaptor class.
+typedef struct { Adaptor impl; } AdaptorImpl;
+
+AdaptorImpl* InSituVis_new( const int method )
 {
+    const auto cmap = kvs::ColorMap::CoolWarm();
+    const auto sub_image = Params::Output::SubImage;
+    const auto sub_depth = Params::Output::SubImageDepth;
+    const auto sub_alpha = Params::Output::SubImageAlpha;
+
     auto* vis = new Adaptor();
+    vis->setOutputImageEnabled( Params::Output::Image );
+    vis->setOutputSubImageEnabled( sub_image, sub_depth, sub_alpha );
+    vis->setOutputEntropiesEnabled( Params::Output::Entropies );
+    vis->setOutputFrameEntropiesEnabled( Params::Output::FrameEntropies );
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
     vis->setAnalysisInterval( Params::AnalysisInterval );
-    vis->setOutputSubImageEnabled( true, false, false ); // color, depth, alpha
-    vis->setColorMap( kvs::ColorMap::CoolWarm() );
-    vis->setOutputEntropiesEnabled( Params::Output::Entropies );
-    /*vis->setOutputEvaluationImageEnabled(
-        Params::Output::EvalImage,
-        Params::Output::EvalImageDepth );*/
-    vis->setAnalysisInterval( Params::AnalysisInterval );
+    vis->setColorMap( cmap );
     vis->setZoomLevel( Params::ZoomLevel );
     vis->setFrameDivisions( Params::FrameDivs );
     vis->setEntropyInterval( Params::EntropyInterval );
     vis->setEntropyFunction( Params::EntropyFunction );
     vis->setInterpolator( Params::Interpolator );
+    vis->setAutoZoomingEnabled( Params::AutoZoom );
 
-#if defined( IN_SITU_VIS__VIEWPOINT__SINGLE )
-        vis->setViewpoint( Params::Viewpoint );
-#elif defined( IN_SITU_VIS__VIEWPOINT__MULTIPLE_SPHERICAL )
-        vis->setViewpoint( Params::ViewpointSpherical );
-#elif defined( IN_SITU_VIS__VIEWPOINT__MULTIPLE_POLYHEDRAL )
-        vis->setViewpoint( Params::ViewpointPolyhedral );
-#endif
     switch ( method )
     {
     case 1: vis->setPipeline( Adaptor::OrthoSlice( vis ) ); break;
@@ -407,39 +499,64 @@ Adaptor* InSituVis_new( const int method )
     default: break;
     }
 
-    return vis;
+    return (AdaptorImpl*)vis;
 }
 
-void InSituVis_delete( Adaptor* self )
+void InSituVis_delete( AdaptorImpl* self )
 {
     if ( self ) delete self;
 }
 
-void InSituVis_initialize( Adaptor* self )
+void InSituVis_initialize( AdaptorImpl* self )
 {
-    self->initialize();
+    self->impl.initialize();
 }
 
-void InSituVis_finalize( Adaptor* self )
+void InSituVis_finalize( AdaptorImpl* self )
 {
-    self->finalize();
+    self->impl.finalize();
 }
 
-void InSituVis_setGlobalDims( Adaptor* self, int dimx, int dimy, int dimz )
+void InSituVis_setGlobalDims( AdaptorImpl* self, int dimx, int dimy, int dimz )
 {
-    self->setGlobalDims( kvs::Vec3ui( dimx, dimy, dimz ) );
+    self->impl.setGlobalDims( kvs::Vec3ui( dimx, dimy, dimz ) );
 }
 
-void InSituVis_setOffset( Adaptor* self, int offx, int offy, int offz )
+void InSituVis_setOffset( AdaptorImpl* self, int offx, int offy, int offz )
 {
-    self->setOffset( kvs::Vec3ui( offx, offy, offz ) );
+    self->impl.setOffset( kvs::Vec3ui( offx, offy, offz ) );
 }
 
-void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz )
+void InSituVis_setFinalTimeStep( AdaptorImpl* self, int index )
+{
+    self->impl.setFinalTimeStep( index );
+}
+
+void InSituVis_simTimerStart( AdaptorImpl* self )
+{
+    self->impl.simTimer().start();
+}
+
+void InSituVis_simTimerStamp( AdaptorImpl* self )
+{
+    self->impl.simTimer().stamp();
+}
+
+void InSituVis_visTimerStart( AdaptorImpl* self )
+{
+    self->impl.visTimer().start();
+}
+
+void InSituVis_visTimerStamp( AdaptorImpl* self )
+{
+    self->impl.visTimer().stamp();
+}
+
+void InSituVis_put( AdaptorImpl* self, double* values, int dimx, int dimy, int dimz )
 {
     const auto dims = kvs::Vec3ui( dimx, dimy, dimz );
     const auto size = size_t( dimx * dimy * dimz );
-    const auto offs = self->offset();
+    const auto offs = self->impl.offset();
     const auto min_coord = kvs::Vec3{ offs };
     const auto max_coord = kvs::Vec3{ offs + dims } - kvs::Vec3{ 1, 1, 1 };
 
@@ -452,12 +569,12 @@ void InSituVis_put( Adaptor* self, double* values, int dimx, int dimy, int dimz 
     volume.setMinMaxObjectCoords( min_coord, max_coord );
     volume.setMinMaxExternalCoords( min_coord, max_coord );
 
-    self->put( volume );
+    self->impl.put( volume );
 }
 
-void InSituVis_exec( Adaptor* self, double time_value, int time_index )
+void InSituVis_exec( AdaptorImpl* self, double time_value, int time_index )
 {
-    self->exec( { float( time_value ), size_t( time_index ) } );
+    self->impl.exec( { float( time_value ), size_t( time_index ) } );
 }
 
 } // end of extern "C"

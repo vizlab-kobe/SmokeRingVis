@@ -101,7 +101,6 @@ program main_m
     ! slicedataモジュールの初期化。
     ! このモジュールはシミュレーション領域の断面図を出力する。
 
-
   call solver__diagnosis(nloop,time,fluid)
     ! solverモジュールで定義されているdiagnosis（診断）
     ! サブルーチンを呼び出す。医者が患者を診るのがdiagnosis
@@ -151,7 +150,7 @@ program main_m
 
     ! IN_SITU_VIS: Put & Execute
     ! {
-    !    call insitu_vis % put( fluid % pressure, NX, NY, NZ )
+    !call insitu_vis % put( fluid % pressure, NX, NY, NZ )
     call insitu_vis % put( vis % get_enstrophy( fluid ), NX, NY, NZ )
     call insitu_vis % exec( time, nloop )
     ! }
@@ -170,6 +169,7 @@ program main_m
   ! IN_SITU_VIS: Finalize
   ! {
   call insitu_vis % finalize()
+  call insitu_vis % delete()
   ! }
 
   !  call vis%finalize
