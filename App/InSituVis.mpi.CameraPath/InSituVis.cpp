@@ -16,23 +16,11 @@
 #include <InSituVis/Lib/StochasticRenderingAdaptor.h>
 #include <InSituVis/Lib/CameraPathControlledAdaptor_mpi.h>
 
-
-const auto Pos = [] ( const float r )
-{
-    const auto tht = kvs::Math::pi / 4.0f;
-    const auto phi = kvs::Math::pi / 4.0f;
-    const auto x = static_cast<float>( r * std::sin( tht ) * std::sin( phi ) );
-    const auto y = static_cast<float>( r * std::cos( tht ) );
-    const auto z = static_cast<float>( r * std::sin( tht ) * std::cos( phi ) );
-    return kvs::Vec3{ x, y, z };
-};
-
-
 // Parameters
 namespace Params
 {
 
-    struct Output
+struct Output
 {
     static const auto Image = true;
     static const auto SubImage = false;
@@ -43,38 +31,33 @@ namespace Params
     static const auto EvalImageDepth = false;
 };
 
+const auto VisibleBoundingBox = true;
+const auto VisibleSubBoundingBox = false;
+
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
 const auto AnalysisInterval = 10; // analysis (visuaization) time interval
-//onst auto ViewPos = kvs::Vec3{ 7, 5, 6 }; // viewpoint position
-const auto ViewRad = 12.0f; // viewpoint radius
-const auto ViewPos = Pos( ViewRad ); // viewpoint position
+
+const auto ViewDim = kvs::Vec3ui{ 1, 9, 16 };
 const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
-const auto ViewDim = kvs::Vec3ui{ 1, 5, 10 }; // viewpoint dimension
-const auto Viewpoint = InSituVis::Viewpoint{ { ViewDir, ViewPos } }; // viewpoint
-const auto ViewpointSpherical = InSituVis::SphericalViewpoint{ ViewDim, ViewDir };
-const auto ViewpointPolyhedral = InSituVis::PolyhedralViewpoint{ ViewDim, ViewDir };
-// For IN_SITU_VIS__ADAPTOR__CAMERA_PATH_CONTROLL
-//const auto EntropyInterval = 5; // L: entropy calculation time interval
-const auto EntropyInterval = 30; // L: entropy calculation time interval
-//const auto EntropyInterval = 2; // L: entropy calculation time interval
+const auto Viewpoint = InSituVis::SphericalViewpoint{ ViewDim, ViewDir };
+// const auto Viewpoint = InSituVis::PolyhedralViewpoint{ ViewDim, ViewDir };
+
+const auto CacheSize = 9;
+const auto Delta = 0.75f;
 const auto MixedRatio = 0.5f; // mixed entropy ratio
-//const auto MixedRatio = 0.75f; // mixed entropy ratio
 auto LightEnt = InSituVis::mpi::CameraPathControlledAdaptor::LightnessEntropy();
 auto DepthEnt = InSituVis::mpi::CameraPathControlledAdaptor::DepthEntropy();
 auto MixedEnt = InSituVis::mpi::CameraPathControlledAdaptor::MixedEntropy( LightEnt, DepthEnt, MixedRatio );
 
 // Entropy function
 auto EntropyFunction = MixedEnt;
-//auto EntropyFunction = LightEnt;
-//auto EntropyFunction = DepthEnt;
+// auto EntropyFunction = LightEnt;
+// auto EntropyFunction = DepthEnt;
 
 // Path interpolator
-auto Interpolator = InSituVis::mpi::CameraPathControlledAdaptor::Squad();
-//auto Interpolator = ::Adaptor::Slerp();
+// const auto InterpolationMethod = InSituVis::mpi::CameraPathControlledAdaptor::InterpolationMethod::SLERP;
+const auto InterpolationMethod = InSituVis::mpi::CameraPathControlledAdaptor::InterpolationMethod::SQUAD;
 
-// For IN_SITU_VIS__ADAPTOR__STOCHASTIC_RENDERING
-const auto Repeats = 50; // number of repetitions for stochastic rendering
-const auto BoundaryMeshOpacity = 30; // opacity value [0-255] of boundary mesh
 } // end of namespace Params
 
 // Adaptor
@@ -119,6 +102,49 @@ public:
     #endif
     }
 
+    void execRendering()
+    {
+        if ( !Params::VisibleBoundingBox )
+        {
+            BaseClass::execRendering();
+            return;
+        }
+
+        auto* bbox = kvs::LineObject::DownCast( BaseClass::screen().scene()->object( "BoundingBox" ) );
+        if ( bbox && Params::VisibleBoundingBox ) { bbox->setVisible( false ); }
+
+        BaseClass::execRendering();
+
+        const bool visible = BaseClass::world().isRoot();
+        if ( bbox ) { bbox->setVisible( visible && Params::VisibleBoundingBox ); }
+
+        if ( BaseClass::isEntStep() && !BaseClass::isErpStep() )
+        {
+            const auto index = BaseClass::maxIndex();
+            const auto location = BaseClass::viewpoint().at( index );
+            const auto frame_buffer = BaseClass::readback( location );
+            if ( BaseClass::world().isRoot() )
+            {
+                if ( BaseClass::isOutputImageEnabled() )
+                {
+                    BaseClass::outputColorImage( location, frame_buffer );
+                }
+            }
+        }
+        else
+        {
+            const auto location = BaseClass::erpLocation();
+            const auto frame_buffer = BaseClass::readback( location );
+            if ( BaseClass::world().isRoot() )
+            {
+                if ( BaseClass::isOutputImageEnabled() )
+                {
+                    BaseClass::outputColorImage( location, frame_buffer );
+                }
+            }
+        }
+    }
+
 private:
     void set_min_max_values()
     {
@@ -158,7 +184,7 @@ private:
             kvs::Bounds bounds( kvs::RGBColor::Black(), 2.0f );
             auto* object = bounds.outputLineObject( &dummy );
             object->setName( "Bounds" );
-            object->setVisible( visible );
+            object->setVisible( Params::VisibleBoundingBox );
             BaseClass::screen().registerObject( object );
         }
     }
@@ -323,21 +349,19 @@ extern "C"
 
 Adaptor* InSituVis_new( const int method )
 {
-    auto* vis = new Adaptor();
+    auto vis = new Adaptor();
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
     vis->setAnalysisInterval( Params::AnalysisInterval );
-    vis->setOutputSubImageEnabled( true, false, false ); // color, depth, alpha
+    vis->setOutputSubImageEnabled( Params::Output::SubImage, Params::Output::SubImageDepth, Params::Output::SubImageAlpha );
     vis->setColorMap( kvs::ColorMap::CoolWarm() );
     vis->setOutputEntropiesEnabled( Params::Output::Entropies );
-    vis->setOutputEvaluationImageEnabled(
-        Params::Output::EvalImage,
-        Params::Output::EvalImageDepth );
-    vis->setAnalysisInterval( Params::AnalysisInterval );
-    vis->setEntropyInterval( Params::EntropyInterval );
+    vis->setOutputEvaluationImageEnabled( Params::Output::EvalImage, Params::Output::EvalImageDepth );
+    vis->setCacheSize( Params::CacheSize );
+    vis->setDelta( Params::Delta );
     vis->setEntropyFunction( Params::EntropyFunction );
-    vis->setInterpolator( Params::Interpolator );
-    vis->setViewpoint( Params::ViewpointSpherical );
+    vis->setInterpolator( Params::InterpolationMethod );
+
     switch ( method )
     {
     case 1: vis->setPipeline( Adaptor::OrthoSlice( vis ) ); break;

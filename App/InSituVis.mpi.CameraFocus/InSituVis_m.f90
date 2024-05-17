@@ -1,8 +1,16 @@
+!*****************************************************************************
+!<
+!< @file   InSituVis_m.f90
+!< @author Naohisa Sakamoto
+!< @brief  InSituVis_m module
+!<
+!*****************************************************************************
+
 module InSituVis_m
   use iso_c_binding
   implicit none
 
-  ! Class definition
+  !< @class InSituVis class
   public :: InSituVis
   type InSituVis
      private

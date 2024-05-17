@@ -1,12 +1,12 @@
 #!/bin/sh
 
-NPROC_X=8
-NPROC_Y=8
-NPROC_Z=8
+NPROC_X=3
+NPROC_Y=2
+NPROC_Z=2
 
-NXPP=60
-NYPP=40
-NZPP=40
+NXPP=180
+NYPP=120
+NZPP=120
 
 
 # ==============================================================================
