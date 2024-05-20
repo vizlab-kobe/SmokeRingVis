@@ -16,7 +16,6 @@ module InSituVis_m
      private
      type( C_ptr ) :: ptr = C_NULL_ptr
    contains
-     final :: InSituVis_destroy ! Destructor
      procedure :: delete => InSituVis_delete
      procedure :: initialize => InSituVis_initialize
      procedure :: finalize => InSituVis_finalize
@@ -148,24 +147,6 @@ contains
     integer( C_int ), intent( in ) :: method
     InSituVis_new % ptr = C_InSituVis_new( method )
   end function InSituVis_new
-
-  subroutine InSituVis_destroy( this )
-    implicit none
-    type( InSituVis ) :: this
-    if ( c_associated( this % ptr ) ) then
-       call C_InSituVis_delete( this % ptr )
-       this % ptr = C_NULL_ptr
-    endif
-  end subroutine InSituVis_destroy
-
-!  subroutine InSituVis_destroy_polymorph( this )
-!    implicit none
-!    class( InSituVis ) :: this
-!    if ( c_associated( this % ptr ) ) then
-!       call C_InSituVis_delete( this % ptr )
-!       this % ptr = C_NULL_ptr
-!    endif
-!  end subroutine InSituVis_destroy
 
   subroutine InSituVis_delete( this )
     implicit none
