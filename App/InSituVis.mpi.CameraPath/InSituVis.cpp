@@ -42,8 +42,8 @@ const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 const auto Viewpoint = InSituVis::SphericalViewpoint{ ViewDim, ViewDir };
 // const auto Viewpoint = InSituVis::PolyhedralViewpoint{ ViewDim, ViewDir };
 
-const auto CacheSize = 9;
 const auto Delta = 0.75f;
+const auto entropyInterval = 30;
 const auto MixedRatio = 0.5f; // mixed entropy ratio
 auto LightEnt = InSituVis::mpi::CameraPathControlledAdaptor::LightnessEntropy();
 auto DepthEnt = InSituVis::mpi::CameraPathControlledAdaptor::DepthEntropy();
@@ -357,11 +357,10 @@ Adaptor* InSituVis_new( const int method )
     vis->setColorMap( kvs::ColorMap::CoolWarm() );
     vis->setOutputEntropiesEnabled( Params::Output::Entropies );
     vis->setOutputEvaluationImageEnabled( Params::Output::EvalImage, Params::Output::EvalImageDepth );
-    vis->setCacheSize( Params::CacheSize );
+    vis->setEntropyInterval( Params::entropyInterval );
     vis->setDelta( Params::Delta );
     vis->setEntropyFunction( Params::EntropyFunction );
-    vis->setInterpolator( Params::InterpolationMethod );
-
+    vis->setInterpolationMethod( Params::InterpolationMethod );
     switch ( method )
     {
     case 1: vis->setPipeline( Adaptor::OrthoSlice( vis ) ); break;
