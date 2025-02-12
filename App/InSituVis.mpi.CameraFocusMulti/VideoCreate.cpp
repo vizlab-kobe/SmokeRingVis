@@ -8,32 +8,32 @@
 #include <sstream>
 #include <string>
 #include <boost/filesystem.hpp>
+#include <chrono>
+#include <cmath> 
 
 namespace fs = boost::filesystem;
 using namespace std;
 
 class Graph {
 public:
-    int V; // グラフの頂点数
-    vector<vector<pair<int, float>>> adj; // 隣接リスト (頂点, 重み)
+    int V; 
+    vector<vector<pair<int, float>>> adj; 
 
     Graph(int V) {
         this->V = V;
         adj.resize(V);
     }
 
-    // 辺を追加するメソッド（有向グラフ）
     void addEdge(int u, int v, float weight) {
         adj[u].push_back(make_pair(v, weight));
     }
 
-    // ダイクストラ法による最短経路計算
     void dijkstra(int start, vector<float>& dist, vector<int>& parent) {
         dist.assign(V, std::numeric_limits<float>::max());
         parent.assign(V, -1);
         dist[start] = 0.0f;
 
-        set<pair<float, int>> s; // (距離, 頂点)
+        set<pair<float, int>> s; // (distance, node)
         s.insert(make_pair(0.0f, start));
         int i=0;
         while (!s.empty()) {
@@ -42,7 +42,6 @@ public:
             for (auto& neighbor : adj[u]) {
                 int v = neighbor.first;
                 float weight = neighbor.second;
-
                 if (dist[u] + weight < dist[v]) {
                     if (dist[v] != std::numeric_limits<float>::max()) {
                         s.erase(make_pair(dist[v], v));
@@ -52,10 +51,10 @@ public:
                     s.insert(make_pair(dist[v], v));
                 }
             }    
+
         }
     }
 
-    // 通ったノードを逆順で表示するヘルパー関数
     stack<int> printPath(const vector<int>& parent, int node) {
         if (node == -1) return {};
         stack<int> path;
@@ -63,7 +62,6 @@ public:
         while (current != -1) {
             path.push(current);
             current = parent[current];
-            // std::cout<<current<<std::endl;
         }
         return path;
     }
@@ -75,7 +73,7 @@ std::vector<float> extractColumnFloat(const std::string& filename, size_t column
         std::cerr << "Failed to open file: " << filename << std::endl;
     }
 
-    std::vector<std::string> column_data; // 特定の列を格納する配列
+    std::vector<std::string> column_data; 
     std::string line;
     std::getline(file, line);
     while (std::getline(file, line)) {
@@ -83,11 +81,10 @@ std::vector<float> extractColumnFloat(const std::string& filename, size_t column
         std::string cell;
         size_t current_index = 0;
 
-        // CSVの各行をカンマで分割
         while (std::getline(ss, cell, ',')) {
             if (current_index == column_index) {
-                column_data.push_back(cell); // 指定列のデータを格納
-                break; // 特定の列に到達したら処理を終了
+                column_data.push_back(cell); 
+                break; 
             }
             ++current_index;
         }
@@ -96,8 +93,6 @@ std::vector<float> extractColumnFloat(const std::string& filename, size_t column
     file.close();
 
     std::vector<float> vec; 
-    // 抽出した列を出力
-    // std::cout << "Extracted column " << column_index << ":" << std::endl;
     for (auto value : column_data) {
         auto va = std::stof(value);
         vec.push_back( va );
@@ -111,7 +106,7 @@ std::vector<std::string> extractColumn(const std::string& filename, size_t colum
         std::cerr << "Failed to open file: " << filename << std::endl;
     }
 
-    std::vector<std::string> column_data; // 特定の列を格納する配列
+    std::vector<std::string> column_data; 
     std::string line;
     std::getline(file, line);
     while (std::getline(file, line)) {
@@ -119,11 +114,11 @@ std::vector<std::string> extractColumn(const std::string& filename, size_t colum
         std::string cell;
         size_t current_index = 0;
 
-        // CSVの各行をカンマで分割
+       
         while (std::getline(ss, cell, ',')) {
             if (current_index == column_index) {
-                column_data.push_back(cell); // 指定列のデータを格納
-                break; // 特定の列に到達したら処理を終了
+                column_data.push_back(cell); 
+                break; 
             }
             ++current_index;
         }
@@ -132,8 +127,6 @@ std::vector<std::string> extractColumn(const std::string& filename, size_t colum
     file.close();
 
     std::vector<std::string> vec; 
-    // 抽出した列を出力
-    // std::cout << "Extracted column " << column_index << ":" << std::endl;
     for (auto value : column_data) {
         vec.push_back( value );
     }
@@ -159,19 +152,31 @@ std::vector<std::string> listFiles(const fs::path& directory) {
     }
 }
 
-int getTime(std::string filename){
-    size_t firstUnderscore = filename.find('_'); // 最初のアンダースコアの位置
-    size_t secondUnderscore = filename.find('_', firstUnderscore + 1); // 次のアンダースコアの位置
+std::vector<int> getFilenameDetail(std::string filename){
+    std::vector<int> file;
+    size_t firstUnderscore = filename.find('_'); 
+    size_t secondUnderscore = filename.find('_', firstUnderscore + 1); 
+    size_t thirdUnderscore = filename.find('_', secondUnderscore + 1);
+    size_t fourthUnderscore = filename.find('_', thirdUnderscore + 1);
+    size_t periodScore = filename.find('.');
+
     int time = atoi((filename.substr(firstUnderscore + 1, secondUnderscore - firstUnderscore - 1)).c_str() );
-    return time;
+    int candidate = atoi((filename.substr(secondUnderscore + 1, thirdUnderscore - secondUnderscore - 1)).c_str() );
+    int zoomLevel = atoi((filename.substr(thirdUnderscore + 1, fourthUnderscore - thirdUnderscore - 1)).c_str() );
+    int route = atoi((filename.substr(fourthUnderscore + 1, periodScore - fourthUnderscore - 1)).c_str() );
+    file.push_back(time);
+    file.push_back(candidate);
+    file.push_back(zoomLevel);
+    file.push_back(route);
+    return file;
 }
 
 bool getRouteImage(int time_from, int time_to, int candidate_num, int from, int to, std::string filename ){
     int routeNum = (from%candidate_num)*candidate_num + to%candidate_num;
-    size_t firstUnderscore = filename.find('_'); // 最初のアンダースコアの位置
-    size_t secondUnderscore = filename.find('_', firstUnderscore + 1); // 次のアンダースコアの位置
-    size_t thirdUnderscore = filename.find('_', secondUnderscore + 1); // 次のアンダースコアの位置
-    size_t fourthUnderscore = filename.find('_', thirdUnderscore + 1); // 次のアンダースコアの位置
+    size_t firstUnderscore = filename.find('_'); 
+    size_t secondUnderscore = filename.find('_', firstUnderscore + 1);
+    size_t thirdUnderscore = filename.find('_', secondUnderscore + 1);
+    size_t fourthUnderscore = filename.find('_', thirdUnderscore + 1); 
     size_t periodScore = filename.find('.'); 
     std::string routeImage;
 
@@ -185,10 +190,11 @@ bool getRouteImage(int time_from, int time_to, int candidate_num, int from, int 
     return false;
 }
 
-
 int main(int argc, char *argv[]) {
-    std::vector<std::string> fn; //ファイル名
-    std::vector<float> en;//エントロピーの値
+    chrono::system_clock::time_point start, end;
+
+    std::vector<std::string> fn; 
+    std::vector<float> en;
     std::vector<float> pFP;
     std::vector<float> pCP;
     std::string cell;
@@ -198,8 +204,6 @@ int main(int argc, char *argv[]) {
     auto entropy_ratio = atof(argv[3]);
     auto focus_path_length_ratio = atof(argv[4]);
     auto camera_path_length_ratio = atof(argv[5]);
-
-    // std::ifstream file("/home/matsushima/Work/GitHub/OralAirFlowVis/realistic-s3/Output_1130/output_video_params.csv");
     std::ifstream file("./Output/output_video_params.csv");
 
     if (!file.is_open()) {
@@ -207,31 +211,27 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // fn = extractColumn("/home/matsushima/Work/GitHub/OralAirFlowVis/realistic-s3/Output/output_video_params.csv", 0);
-    // en = extractColumnFloat("/home/matsushima/Work/GitHub/OralAirFlowVis/realistic-s3/Output/output_video_params.csv", 1);
-
     fn = extractColumn("./Output/output_video_params.csv", 0);
     en = extractColumnFloat("./Output/output_video_params.csv", 1);
 
     for (auto& val : en) {
         val = 1.0f / val;
     }
-    Graph g(fn.size()); // 頂点数9のグラフを作成
+    Graph g(fn.size()); 
     std::string line;
-    // ヘッダー行を読み飛ばす場合
     std::getline(file, line);
     while (std::getline(file, line)) {
          std::istringstream i_stream(line);
          int n = 0;
          while(getline(i_stream, cell, ',')){
             auto a = atof(cell.c_str());
-            if(n>1 && 5>n) pFP.push_back(a);
-            else if(n>4 && 8>n) pCP.push_back(a);
+            if(n>1 && 2+candidate_num>n) pFP.push_back(a);
+            else if(n>1+candidate_num && 2*(candidate_num)+2>n) pCP.push_back(a);
             n++;
          }
     }
-    file.clear();         // ストリームの状態をリセット（エラーフラグをクリア）
-    file.seekg(0);        // ファイルポインタを先頭に戻す
+    file.clear();         
+    file.seekg(0);        
     for(size_t i=0;i<candidate_num+1;i++){
         std::getline(file, line);
     }
@@ -243,19 +243,18 @@ int main(int argc, char *argv[]) {
         float sum_pCP = 0.0f;
 
         for(size_t j=0; j<candidate_num;j++){
-            sum_en = sum_en + en[check*candidate_num+j];
+            sum_en = sum_en + en[check*candidate_num+j]; 
             sum_pFP = sum_pFP + pFP[path + candidate_num*j + i%candidate_num];
-            
-        }
-        for(size_t j=0;j<candidate_num;j++){
             sum_pCP = sum_pCP + pCP[path + candidate_num*j + i%candidate_num];
+        }
+
+        for(size_t j=0;j<candidate_num;j++){
             auto weight = entropy_ratio * en[check*candidate_num+j]/sum_en + focus_path_length_ratio * pFP[path + candidate_num*j + i%candidate_num]/sum_pFP + camera_path_length_ratio * pCP[path + candidate_num*j + i%candidate_num]/sum_pCP;
             g.addEdge(i,check*candidate_num+j,weight);
-            // std::cout<<"weight "<<weight<<std::endl;
         }
+
         if(i%candidate_num == candidate_num-1) check++;
    } 
- //12/4 一応重みの計算までやった。けど、怪しいので要確認。ダイクストラ走らせて経路となるoutputfile名にを並べてそれらを動画として出力までしよう
 
     vector<int> goals;
     for(int i=0; i<candidate_num; i++){
@@ -263,10 +262,15 @@ int main(int argc, char *argv[]) {
     }
     vector<float> dist;
     vector<int> parent;
+    start = chrono::system_clock::now();
     g.dijkstra(first_file, dist, parent);
+    end = chrono::system_clock::now();
+    double time = static_cast<double>(chrono::duration_cast<chrono::microseconds>(end - start).count() / 1000.0);
+    printf("time %lf[ms]\n", time);
     float minDistance = std::numeric_limits<float>::max();
     int bestGoal = -1;
     for (int goal : goals) {
+        // std::cout<<dist[goal]<<std::endl;
         if (dist[goal] < minDistance) {
             minDistance = dist[goal];
             bestGoal = goal;
@@ -278,11 +282,8 @@ int main(int argc, char *argv[]) {
     // cout << "経路: ";
     path =  g.printPath(parent, bestGoal);
     } else {
-        // cout << "ゴールノードへの経路が見つかりません。" << endl;
+        cout << "ゴールノードへの経路が見つかりません。" << endl;
     }
-
-
-
 
     std::string newDirPath = "./ex_Output/";
     std::string sourceImagePath;
@@ -290,24 +291,32 @@ int main(int argc, char *argv[]) {
     fs::create_directory(newDirPath);
     fs::create_directory(newDirPath + "Output/");
     std::string destImagePath = newDirPath+"Output/";
-    int fromImageindex = -1;
+    int fromImageindex = 0;
+    int count = 0;
+    start = chrono::system_clock::now();
     while (!path.empty()) {
-        sourceImagePath = "./" + fn[path.top()];
+        sourceImagePath = "./"+fn[path.top()];
         destImagePath = "./ex_Output/" + fn[path.top()];
         fs::copy_file(sourceImagePath, destImagePath, fs::copy_option::overwrite_if_exists);
-        if (fromImageindex>-1){
-            auto fromTime = getTime(fn[fromImageindex]);
-            auto toTime = getTime(fn[path.top()]);
-            for (const auto& entry : fs::directory_iterator("Output")) {
-                if(getRouteImage(fromTime,toTime,candidate_num,fromImageindex,path.top(),entry.path().filename().c_str())){ 
+        auto fromTime = getFilenameDetail(fn[fromImageindex]);
+        auto toTime = getFilenameDetail(fn[path.top()]);
+
+        if (count>0){
+            for (const auto& entry : fs::directory_iterator("./Output")) {
+                if(getRouteImage(*fromTime.begin(),*toTime.begin(),candidate_num,fromImageindex,path.top(),entry.path().filename().c_str())){ 
                     auto f = "./Output/"+entry.path().filename().string();
                     auto t ="./ex_Output/Output/"+entry.path().filename().string();
                     fs::copy_file(f, t, fs::copy_option::overwrite_if_exists);
                 }
-            }
+            }            
         }
         fromImageindex = path.top();
         path.pop();
+        count = count+1;
     }
+    end = chrono::system_clock::now();
+    time = static_cast<double>(chrono::duration_cast<chrono::microseconds>(end - start).count() / 1000.0);
+    printf("time2 %lf[ms]\n", time);
+
     return 0;
 }
