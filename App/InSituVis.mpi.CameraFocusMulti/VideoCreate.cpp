@@ -53,13 +53,6 @@ public:
                 }
             }    
         }
-        // for (int i = 0; i < V; i++) {
-        //     if (dist[i] == std::numeric_limits<float>::max())
-        //         cout << "頂点 " << i << " への最短距離: INF" << endl;
-        //     else
-        //         cout << "頂点 " << i << " への最短距離: " << dist[i] << ", 通ったノード: ";
-        //         printPath(parent, i);
-        // }
     }
 
     // 通ったノードを逆順で表示するヘルパー関数
@@ -70,7 +63,7 @@ public:
         while (current != -1) {
             path.push(current);
             current = parent[current];
-            std::cout<<current<<std::endl;
+            // std::cout<<current<<std::endl;
         }
         return path;
     }
@@ -280,12 +273,12 @@ int main(int argc, char *argv[]) {
         }
     }
     if (bestGoal != -1) {
-    cout << "最短距離のゴールノード: " << bestGoal << endl;
-    cout << "最短距離: " << minDistance << endl;
-    cout << "経路: ";
+    // cout << "最短距離のゴールノード: " << bestGoal << endl;
+    // cout << "最短距離: " << minDistance << endl;
+    // cout << "経路: ";
     path =  g.printPath(parent, bestGoal);
     } else {
-        cout << "ゴールノードへの経路が見つかりません。" << endl;
+        // cout << "ゴールノードへの経路が見つかりません。" << endl;
     }
 
 
