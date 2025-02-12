@@ -58,14 +58,14 @@ const auto AutoZoom = true;
 const auto ColorImage = true;
 
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
-const auto AnalysisInterval = 1; // l: analysis (visuaization) time interval
+const auto AnalysisInterval = 10; // l: analysis (visuaization) time interval
 
 
 // For IN_SITU_VIS__VIEWPOINT__*
 //const auto ViewPos = kvs::Vec3{-7.0f,0.0f,1.0f}; 
 //const auto ViewPos = kvs::Vec3{-8.0f,-5.0f,6.0f}; // viewpoint position
-//const auto ViewPos = kvs::Vec3{-6.0f,-3.0f,3.0f}; // viewpoint position
-const auto ViewPos = kvs::Vec3{0.0f,0.0f,12.0f}; // viewpoint position
+const auto ViewPos = kvs::Vec3{-6.0f,-3.0f,3.0f}; // viewpoint position
+//const auto ViewPos = kvs::Vec3{0.0f,0.0f,12.0f}; // viewpoint position
 
 const auto ViewDim = kvs::Vec3ui{ 1, 9, 16 }; // viewpoint dimension
 //const auto ViewDim = kvs::Vec3ui{ 1, 35, 70 }; // viewpoint dimension
@@ -101,8 +101,8 @@ const auto ViewpointPolyhedral = InSituVis::PolyhedralViewpoint{ ViewDim, ViewDi
 const auto ZoomLevel = 5;
 const auto FrameDivs = kvs::Vec2ui{ 20, 20 };
 //const auto EntropyInterval = 4; // L: entropy calculation time interval
-const auto CacheSize = 6;
-const auto Delta = 1.5f;
+const auto entropyInterval = 10;
+const auto Delta = 999.0f;
 const auto MixedRatio = 0.5f; // mixed entropy ratio
 auto LightEnt = InSituVis::mpi::CameraPathControlledAdaptor::LightnessEntropy();
 auto DepthEnt = InSituVis::mpi::CameraPathControlledAdaptor::DepthEntropy();
@@ -121,8 +121,8 @@ auto EntropyFunction = MixedEnt;
 
 
 // Path interpolator
-const auto SLERP = false;
-const auto SQUAD = true;
+const auto InterpolationMethod = InSituVis::mpi::CameraPathControlledAdaptor::InterpolationMethod::SQUAD;
+
 }
 using AdaptorBase = InSituVis::mpi::CameraFocusControlledAdaptor;
 // Adaptor
@@ -140,6 +140,8 @@ private:
     kvs::ColorMap m_cmap{ 256 };
     kvs::mpi::StampTimer m_sim_timer{ BaseClass::world() }; ///< timer for sim. process
     kvs::mpi::StampTimer m_vis_timer{ BaseClass::world() }; ///< timer for vis. process
+    size_t m_final_time_step_index = 0;
+
 
 public:
     Adaptor() = default;
@@ -162,26 +164,47 @@ public:
         this->set_global_bounds();
         BaseClass::exec( sim_time );
     }
-    void execRendering()
+    void setFinalTimeStepIndex( size_t index )
     {
-        if ( !Params::VisibleBoundingBox )
-        {   
-            BaseClass::execRendering();
-            return;
-        }
+        m_final_time_step_index = index;
+        this->setFinalTimeStep( m_final_time_step_index );
+    }
 
-        auto* bbox = kvs::LineObject::DownCast( BaseClass::screen().scene()->object( "BoundingBox" ) );
-        if ( bbox && Params::VisibleBoundingBox ) { bbox->setVisible( false ); }
+    void execRendering()
+{       BaseClass::execRendering();
+                            auto min_coord = kvs::Vec3{ 0, 0, 0 };
+                            auto max_coord = kvs::Vec3{ m_global_dims } - kvs::Vec3{ 1, 1, 1 };
 
-      if (Params::EstimateIncludingBox == false)
-        {   
-            
-        BaseClass::execRendering();
+                            Object dummy;
+                            dummy.setMinMaxObjectCoords( min_coord, max_coord );
+                            dummy.setMinMaxExternalCoords( min_coord, max_coord );
+
+                            kvs::Bounds bounds( kvs::RGBColor::Black(), 2.0f );
+                            auto* bbox = bounds.outputLineObject( &dummy );
+                            bbox->setName( "BoundingBox" );
+                            BaseClass::screen().registerObject( bbox );
         const bool visible = BaseClass::world().isRoot();
         if ( bbox ) { bbox->setVisible( visible && Params::VisibleBoundingBox ); }
 
+        // if ( !Params::VisibleBoundingBox )
+        // {   
+        //     BaseClass::execRendering();
+        //     return;
+        // }
+
+        // auto* bbox = kvs::LineObject::DownCast( BaseClass::screen().scene()->object( "BoundingBox" ) );
+        // if ( bbox && Params::VisibleBoundingBox ) { bbox->setVisible( false ); }
+
+    
+    //   if (Params::EstimateIncludingBox == false)
+    //     {   
+            
+        // BaseClass::execRendering();
+        // const bool visible = BaseClass::world().isRoot();
+        // if ( bbox ) { bbox->setVisible( visible && Params::VisibleBoundingBox ); }
+
             if (BaseClass::isEntStep() && !BaseClass::isErpStep()) 
-            {
+{
                 const auto index = BaseClass::maxIndex();
                 const auto focus = BaseClass::maxFocusPoint();
                 auto location = BaseClass::focusedLocation( BaseClass::viewpoint().at( index ), focus );
@@ -208,18 +231,18 @@ public:
                 }
                 if ( Params::AutoZoom )
                 {   
-                    
                     auto location = BaseClass::focusedLocation( BaseClass::viewpoint().at( index ) , focus ); 
-                    location.position = BaseClass::estimatedZoomPosition();
+                    location.position = BaseClass::maxPosition();
                     location.rotation = BaseClass::maxRotation();
+                    // const auto location = BaseClass::estimatedZoomLocation();
                     const auto level = BaseClass::estimatedZoomLevel();
                     auto frame_buffer = BaseClass::readback( location );
                     if ( BaseClass::world().isRoot() )
                     {
                         if ( BaseClass::isOutputImageEnabled() )
                         {
-                            if ( Params::ColorImage ) BaseClass::outputColorImage( location, frame_buffer, level );
-                            else {BaseClass::outputDepthImage( location, frame_buffer, level );}
+                            // if ( Params::ColorImage ) BaseClass::outputColorImage( location, frame_buffer, level );
+                            // else {BaseClass::outputDepthImage( location, frame_buffer, level );}
                         }
                     }
                 }
@@ -257,6 +280,7 @@ public:
                     //location.position = BaseClass::bestLocationPosition();
                     //auto bestlocation = BaseClass::erpLocation( focus );
                     //auto location = BaseClass::bestLocation();
+                    // auto location = BaseClass::estimatedZoomLocation();
                     const auto level = BaseClass::estimatedZoomLevel();
                     auto frame_buffer = BaseClass::readback( location );
 
@@ -265,19 +289,20 @@ public:
                     {
                         if ( BaseClass::isOutputImageEnabled() )
                         {  
-                            if ( Params::ColorImage ) BaseClass::outputColorImage( location, frame_buffer, level );
-                            else {BaseClass::outputDepthImage( location, frame_buffer, level );}
+                            // if ( Params::ColorImage ) BaseClass::outputColorImage( location, frame_buffer, level );
+                            // else {BaseClass::outputDepthImage( location, frame_buffer, level );}
                         }
                     }
                 }
             }
-        }
-        else
-        {
-            const bool visible = BaseClass::world().isRoot();
-            if ( bbox ) { bbox->setVisible( visible && Params::VisibleBoundingBox ); }
-            BaseClass::execRendering();
-        }
+            if ( bbox ) { bbox->setVisible( false ); }
+        // }
+        // else
+        // {
+        //     const bool visible = BaseClass::world().isRoot();
+        //     if ( bbox ) { bbox->setVisible( visible && Params::VisibleBoundingBox ); }
+        //     BaseClass::execRendering();
+        // }
     }
 
     bool dump()
@@ -359,12 +384,12 @@ private:
             dummy.setMinMaxObjectCoords( min_coord, max_coord );
             dummy.setMinMaxExternalCoords( min_coord, max_coord );
 
-            //const bool visible = BaseClass::isAlphaBlendingEnabled() ? false : BaseClass::world().isRoot();
-            const bool visible = false;
+            const bool visible = BaseClass::isAlphaBlendingEnabled() ? false : BaseClass::world().isRoot();
+            // const bool visible = false;
             kvs::Bounds bounds( kvs::RGBColor::Black(), 2.0f );
             auto* object = bounds.outputLineObject( &dummy );
             object->setName( "Bounds" );
-            object->setVisible( visible );
+            object->setVisible( false );
             BaseClass::screen().registerObject( object );
         }
     }
@@ -530,16 +555,12 @@ Adaptor* InSituVis_new( const int method )
     vis->setFrameDivisions( Params::FrameDivs );
     vis->setEntropyFunction( Params::EntropyFunction );
     vis->setOutputColorImage( Params::ColorImage );
-  
+    vis->setAutoZoomingEnabled( Params::AutoZoom );
 
     vis->setColorMap( kvs::ColorMap::CoolWarm() );
-    vis->setCacheSize( Params::CacheSize );
+    vis->setEntropyInterval( Params::entropyInterval );
     vis->setDelta( Params::Delta );
-    if( Params::SLERP ) vis->setInterpolatorToSlerp();
-    if( Params::SQUAD ) vis->setInterpolatorToSquad();
-    vis->setAutoZoomingEnabled( Params::AutoZoom );
-    if( Params::SLERP ) vis->setInterpolatorToSlerp();
-    if( Params::SQUAD ) vis->setInterpolatorToSquad();
+    vis->setInterpolationMethod( Params::InterpolationMethod );
 
     switch ( method )
     {
