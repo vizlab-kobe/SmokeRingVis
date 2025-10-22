@@ -32,24 +32,18 @@ module constants_m
   real(DR), parameter :: PI = atan(1.0_DR)*4        ! 円周率
   real(DR), parameter :: TWOPI = PI*2               ! 円周率の2倍
 
-!  << Grid Size >>
-  ! integer(SI), parameter :: NX =  60    ! 格子点数 x方向 粗い解像度
-  ! integer(SI), parameter :: NY =  20    ! 格子点数 y方向 粗い解像度
-  ! integer(SI), parameter :: NZ =  20    ! 格子点数 z方向 粗い解像度
-
-  integer(SI), parameter :: NX =  92    ! 格子点数 x方向
-  integer(SI), parameter :: NY =  32    ! 格子点数 y方向
-  integer(SI), parameter :: NZ =  32    ! 格子点数 z方向
-
-  ! integer(SI), parameter :: NX = 152  ! 格子点数 x方向 少し高めの解像度
-  ! integer(SI), parameter :: NY =  52  ! 格子点数 y方向 少し高めの解像度
-  ! integer(SI), parameter :: NZ =  52  ! 格子点数 z方向 少し高めの解像度
+  ! << Grid Size >>
+  ! 粗い解像度: (NX, NY, NZ) = (60, 20, 20)
+  ! 少し高めの解像度: (NX, NY, NZ) = (152, 52, 52)
+  integer(SI), parameter :: NX = 92    ! 格子点数 x方向
+  integer(SI), parameter :: NY = 32    ! 格子点数 y方向
+  integer(SI), parameter :: NZ = 32    ! 格子点数 z方向
 
   ! << Box Size >>
-  real(DR), parameter :: XMIN = -1.5_DR ! 計算領域範囲 +x
-  real(DR), parameter :: XMAX = +1.5_DR ! 計算領域範囲 -x
-  real(DR), parameter :: YMIN = -0.5_DR ! 計算領域範囲 +y
-  real(DR), parameter :: YMAX = +0.5_DR ! 計算領域範囲 -y
-  real(DR), parameter :: ZMIN = -0.5_DR ! 計算領域範囲 +z
-  real(DR), parameter :: ZMAX = +0.5_DR ! 計算領域範囲 -z
+  real(DR), parameter :: XMIN = -10.0_DR ! 計算領域範囲 +x
+  real(DR), parameter :: XMAX = +10.0_DR ! 計算領域範囲 -x
+  real(DR), parameter :: YMIN = -5.0_DR ! 計算領域範囲 +y
+  real(DR), parameter :: YMAX = +5.0_DR ! 計算領域範囲 -y
+  real(DR), parameter :: ZMIN = -5.0_DR ! 計算領域範囲 +z
+  real(DR), parameter :: ZMAX = +5.0_DR ! 計算領域範囲 -z
 end module constants_m
