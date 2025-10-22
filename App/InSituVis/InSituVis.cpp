@@ -4,9 +4,6 @@
  *  @author Naohisa Sakamoto
  */
 /*****************************************************************************/
-#if defined( KVS_SUPPORT_MPI )
-#undef KVS_SUPPORT_MPI
-#endif
 #include <InSituVis/Lib/Adaptor.h>
 #include <InSituVis/Lib/Viewpoint.h>
 #include <kvs/StructuredVolumeObject>
