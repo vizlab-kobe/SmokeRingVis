@@ -8,7 +8,7 @@ if [ -e "Makefile.kvs" ]; then
     kvsmake distclean
 fi
 
-OUTPUT_DIR=Output
+OUTPUT_DIR=/data2/tomoya/SmokeRing/Output
 if [ -e $OUTPUT_DIR ]; then
     rm -rf $OUTPUT_DIR
 fi

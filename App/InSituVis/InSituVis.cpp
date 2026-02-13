@@ -1,9 +1,3 @@
-/*****************************************************************************/
-/**
- *  @file   InSituVis.cpp
- *  @author Naohisa Sakamoto
- */
-/*****************************************************************************/
 #if defined( KVS_SUPPORT_MPI )
 #undef KVS_SUPPORT_MPI
 #endif
@@ -15,16 +9,26 @@
 #include <kvs/Isosurface>
 #include <kvs/OrthoSlice>
 #include <kvs/Bounds>
-
+#include <InSituVis/Lib/PolyhedralViewpoint.h>
+#include <kvs/StochasticLineRenderer>
+#include <kvs/StochasticPolygonRenderer>
+#include <kvs/ParticleBasedRenderer>
+#include <kvs/CellByCellMetropolisSampling>
 
 // Parameters
 namespace Params
 {
 const auto ImageSize = kvs::Vec2ui{ 512, 512 }; // width x height
 const auto AnalysisInterval = 100; // analysis (visuaization) time interval
-const auto ViewPos = kvs::Vec3{ 7, 5, 6 }; // viewpoint position
 const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
-const auto Viewpoint = InSituVis::Viewpoint{ { ViewDir, ViewPos } }; // viewpoint
+const auto ViewDim = kvs::Vec3ui{ 1, 8, 2 }; // viewpoint dimension
+// const auto Viewpoint = InSituVis::PolyhedralViewpoint{ ViewDim, ViewDir  }; // viewpoint
+
+const auto m_min_coord = kvs::Vec3{ -4.5f, -4.5f, -4.5f };
+const auto m_max_coord = kvs::Vec3{  4.5f,  4.5f,  4.5f };
+const auto Viewpoint = InSituVis::PolyhedralViewpoint{ ViewDim, m_min_coord, m_max_coord,ViewDir };
+
+const auto Repeats = 100; // number of repetitions for stochastic rendering
 } // end of namespace Params
 
 // Type definition
@@ -37,7 +41,7 @@ using Object = kvs::ObjectBase;
 // Visualization pipelines
 inline Pipeline OrthoSlice( const kvs::ColorMap& cmap )
 {
-    return [cmap] ( Screen& screen, const Object& object )
+    return [cmap] ( Screen& screen, const Object& object, const std::string& base_dir, int time_step )
     {
         Volume volume; volume.shallowCopy( Volume::DownCast( object ) );
 
@@ -84,7 +88,7 @@ inline Pipeline OrthoSlice( const kvs::ColorMap& cmap )
 
 inline Pipeline Isosurface( const kvs::ColorMap& cmap )
 {
-    return [cmap] ( Screen& screen, const Object& object )
+    return [cmap] ( Screen& screen, const Object& object, const std::string& base_dir, int time_step )
     {
         Volume volume; volume.shallowCopy( Volume::DownCast( object ) );
 
@@ -145,7 +149,7 @@ inline Pipeline Isosurface( const kvs::ColorMap& cmap )
 
 inline Pipeline VolumeRendering( const kvs::ColorMap& cmap )
 {
-    return [cmap] ( Screen& screen, const Object& object )
+    return [cmap] ( Screen& screen, const Object& object, const std::string& base_dir, int time_step)
     {
         auto* o = new Volume();
         o->shallowCopy( Volume::DownCast( object ) );
@@ -160,7 +164,7 @@ inline Pipeline VolumeRendering( const kvs::ColorMap& cmap )
         else
         {
             // Bounding box.
-            screen.registerObject( o, new kvs::Bounds() );
+            //screen.registerObject( o, new kvs::Bounds() );
 
             // Setup a transfer function.
             auto omap = kvs::OpacityMap();
@@ -181,22 +185,314 @@ inline Pipeline VolumeRendering( const kvs::ColorMap& cmap )
             auto* r = new kvs::RayCastingRenderer();
             r->setTransferFunction( tfunc );
             screen.registerObject( o, r );
+
+            // ===== ここから: Stochastic サンプリングを一時登録してダンプ（execRendering と同条件） =====
+
+            // 1) mesh の外形を volume(o) にも point にも反映できるよう mesh を取得
+            const auto* mesh = kvs::PolygonObject::DownCast( screen.scene()->object( "BoundaryMesh" ) );
+            if ( mesh )
+            {
+                const auto min_coord = mesh->minExternalCoord();
+                const auto max_coord = mesh->maxExternalCoord();
+                o->setMinMaxExternalCoords( min_coord, max_coord ); // レイキャストの座標基準合わせ（任意）
+            }
+
+            // 2) サンプリングして PointObject を取得
+            using Sampler = kvs::CellByCellMetropolisSampling;
+            const auto* camera_for_sampling = screen.scene()->camera();
+            const size_t repeats_sampling = 1; // ← ここで N 回（「1回だけ」なら 1）
+            const float  step_sampling    = 0.5f / 1000.0f;
+            auto* point = new Sampler( camera_for_sampling, o, repeats_sampling, step_sampling, tfunc );
+
+            // 3) PointObject に範囲と名前を付与（execRendering と合わせる）
+            const std::string point_name = std::string("VolumeSamplingPoints");
+            point->setName( point_name );
+            if ( mesh )
+            {
+                const auto min_coord = mesh->minExternalCoord();
+                const auto max_coord = mesh->maxExternalCoord();
+                point->setMinMaxObjectCoords(  min_coord, max_coord );
+                point->setMinMaxExternalCoords( min_coord, max_coord );
+            }
+
+            // 4) 一旦シーンに登録（★登録後の個体を使ってダンプするため）
+            auto* point_renderer = new kvs::glsl::ParticleBasedRenderer();
+            point_renderer->setTwoSideLightingEnabled( true );
+            point_renderer->setRepetitionLevel( repeats_sampling );
+
+            // 表示に影響させたくないなら（完全非表示にしたいなら）
+            // point_renderer->setEnabled( false ); // 実装により有無。なければ最後に remove する。
+            if ( screen.scene()->hasObject( point_name ) )
+            {
+                screen.scene()->replaceObject( point_name, point );
+            }
+            else
+            {
+                screen.registerObject( point, point_renderer );
+            }
+
+            // 5) 登録“後”の個体を取り直し（execRendering と同条件で Object→World 変換）
+            kvs::PointObject* reg_point = kvs::PointObject::DownCast( screen.scene()->object( point_name ) );
+            if ( reg_point )
+            {
+                // 出力ディレクトリは execRendering に合わせると混乱がない
+                const std::string params_dir = base_dir + "/points";
+                {
+                    struct stat st;
+                    if ( ::stat( params_dir.c_str(), &st ) != 0 )
+                    {
+                        ::mkdir( params_dir.c_str(), 0755 );
+                    }
+                }
+
+                const std::string step_str = kvs::String::From( time_step, 6, '0' );
+                const std::string json_path = params_dir + "/points_" + step_str + "_" + point_name + ".json";
+
+                // ダンプ（execRendering と同じく to_world=true で変換）
+                const auto& coords  = reg_point->coords();
+                const auto& colors  = reg_point->colors();
+                const auto& normals = reg_point->normals();
+                const size_t nv = reg_point->numberOfVertices();
+
+                std::ofstream ofs( json_path );
+                if ( ofs.is_open() )
+                {
+                    ofs << "{\n";
+                    ofs << "  \"time_step\": " << time_step << ",\n";
+                    ofs << "  \"object_name\": \"" << point_name << "\",\n";
+                    ofs << "  \"num_points\": " << nv << ",\n";
+
+                    ofs << "  \"coords\": [\n";
+                    for ( size_t vi = 0; vi < nv; ++vi )
+                    {
+                        const kvs::Vec3 p_obj( coords[3*vi+0], coords[3*vi+1], coords[3*vi+2] );
+                        const kvs::Vec3 p = kvs::ObjectCoordinate( p_obj, reg_point ).toWorldCoordinate().position();
+                        ofs << "    [" << p.x() << ", " << p.y() << ", " << p.z() << "]";
+                        if ( vi + 1 < nv ) ofs << ",";
+                        ofs << "\n";
+                    }
+                    ofs << "  ],\n";
+
+                    ofs << "  \"colors\": [\n";
+                    for ( size_t vi = 0; vi < nv; ++vi )
+                    {
+                        ofs << "    [" << int(colors[3*vi+0]) << ", " << int(colors[3*vi+1]) << ", " << int(colors[3*vi+2]) << "]";
+                        if ( vi + 1 < nv ) ofs << ",";
+                        ofs << "\n";
+                    }
+                    ofs << "  ],\n";
+
+                    ofs << "  \"normals\": [\n";
+                    if ( normals.size() >= 3*nv )
+                    {
+                        for ( size_t vi = 0; vi < nv; ++vi )
+                        {
+                            kvs::Vec3 n_obj( normals[3*vi+0], normals[3*vi+1], normals[3*vi+2] );
+                            n_obj.normalize();
+                            const kvs::Vec3 n = kvs::ObjectCoordinate( n_obj, reg_point ).toWorldCoordinate().position();
+                            ofs << "    [" << n.x() << ", " << n.y() << ", " << n.z() << "]";
+                            if ( vi + 1 < nv ) ofs << ",";
+                            ofs << "\n";
+                        }
+                    }
+                    ofs << "  ]\n";
+                    ofs << "}\n";
+
+                    std::cout << "Wrote point cloud to " << json_path
+                            << " (#points=" << nv << ")\n";
+                }
+                else
+                {
+                    std::cerr << "Error: Cannot open " << json_path << " for writing.\n";
+                }
+
+                // 6) 可視化に影響させないなら登録解除（※API は環境により removeObject の形が異なる場合あり）
+                //   - 名前指定が無ければ、オブジェクトポインタで remove する関数に合わせてください
+                screen.scene()->removeObject( point_name ); // 例：名前で消せる実装の場合
+                // もし removeObject(name) が無ければ:
+                // screen.scene()->removeObject( reg_point );
+            }
+            // ===== ここまで: ダンプ用の一時登録ブロック ====
         }
     };
 };
 
+inline Pipeline StochasticRendering( const kvs::ColorMap& cmap ,const size_t repeats )
+{
+    return [cmap, repeats] ( Screen& screen, const Object& object, const std::string& base_dir, int time_step )
+    {
+        Volume volume; volume.shallowCopy( Volume::DownCast( object ) );
+        if ( volume.numberOfCells() == 0 ) { return; }
 
-/*===========================================================================*/
-/*
- * C functions for the Fortran module
- */
-/*===========================================================================*/
+        const auto* mesh = kvs::PolygonObject::DownCast( screen.scene()->object( "BoundaryMesh" ) );
+        if ( mesh )
+        {
+            const auto min_coord = mesh->minExternalCoord();
+            const auto max_coord = mesh->maxExternalCoord();
+            volume.setMinMaxExternalCoords( min_coord, max_coord );
+        }
+
+        // Setup a transfer function.
+        const auto min_value = volume.minValue();
+        const auto max_value = volume.maxValue();
+
+        //auto c = kvs::ColorMap::CoolWarm( 256 );
+        // auto cmap = kvs::ColorMap::BrewerSpectral( 256 );
+        auto omap = kvs::OpacityMap( 256 );
+        omap.addPoint(   0, 0.0 );
+        omap.addPoint(  30, 0.0 );
+        omap.addPoint(  50, 0.2 );
+        omap.addPoint( 100, 0.3 );
+        omap.addPoint( 240, 0.2 );
+        omap.addPoint( 245, 0.1 );
+        omap.addPoint( 255, 0.0 );
+        omap.create();
+        auto t = kvs::TransferFunction( cmap, omap );
+        //auto t = kvs::TransferFunction( c );
+        t.setRange( min_value, max_value );
+
+        // Particle generation.
+        using Sampler = kvs::CellByCellMetropolisSampling;
+        const auto* camera = screen.scene()->camera();
+        const auto step = 0.5f / 1000.0f;
+        auto* point = new Sampler( camera, &volume, repeats, step, t );
+
+        // ▼ 追加: 出力ディレクトリ "base/params" を用意
+        const std::string points_dir = base_dir + "/points";
+        {
+            struct stat st;
+            if ( ::stat( points_dir.c_str(), &st ) != 0 )
+            {
+                if ( ::mkdir( points_dir.c_str(), 0755 ) != 0 )
+                {
+                    std::cerr << "Warning: Failed to create directory " << points_dir << "\n";
+                }
+            }
+        }
+
+        // データを取り出し -> これがしたい
+        const auto& coords  = point->coords();   // float配列 (x,y,z)*N
+        const auto& colors  = point->colors();   // uint8配列 (r,g,b)*N
+        const auto& normals = point->normals();  // float配列 (nx,ny,nz)*N
+        const size_t nv = point->numberOfVertices();
+        const std::string step_str = kvs::String::From( time_step, 6, '0' );
+        std::cout << "  \"num_points\": " << nv << ",\n";
+
+        const std::string json_path =
+            points_dir + "/points_" + step_str + "_sampling" + ".json";
+
+        std::ofstream ofs( json_path );
+        if ( !ofs.is_open() )
+        {
+            std::cerr << "Error: Cannot open " << json_path << " for writing.\n";
+            return;
+        }
+        
+        // Object→World 変換が必要なら true（体積や行列が入っている場合など）
+        const bool to_world = true;
+
+        ofs << "{\n";
+        ofs << "  \"time_step\": " << time_step << ",\n";
+        ofs << "  \"num_points\": " << nv << ",\n";
+
+            // 座標
+        ofs << "  \"coords\": [\n";
+        for ( size_t vi = 0; vi < nv; ++vi )
+        {
+            const kvs::Vec3 p_obj( coords[3*vi+0], coords[3*vi+1], coords[3*vi+2] );
+            kvs::Vec3 p = p_obj;
+            if ( to_world )
+            {
+                p = kvs::ObjectCoordinate( p_obj, point ).toWorldCoordinate().position();
+            }
+            ofs << "    [" << p.x() << ", " << p.y() << ", " << p.z() << "]";
+            if ( vi + 1 < nv ) ofs << ",";
+            ofs << "\n";
+        }
+        ofs << "  ],\n";
+
+        // 色
+        ofs << "  \"colors\": [\n";
+        for ( size_t vi = 0; vi < nv; ++vi )
+        {
+            ofs << "    ["
+                << int(colors[3*vi+0]) << ", "
+                << int(colors[3*vi+1]) << ", "
+                << int(colors[3*vi+2]) << "]";
+            if ( vi + 1 < nv ) ofs << ",";
+            ofs << "\n";
+        }
+        ofs << "  ],\n";
+
+        // 法線（あれば）
+        ofs << "  \"normals\": [\n";
+        if ( normals.size() >= 3*nv )
+        {
+            for ( size_t vi = 0; vi < nv; ++vi )
+            {
+                kvs::Vec3 n_obj( normals[3*vi+0], normals[3*vi+1], normals[3*vi+2] );
+                n_obj.normalize();
+                kvs::Vec3 n = n_obj;
+                if ( to_world )
+                {
+                    n = kvs::ObjectCoordinate( n_obj, point ).toWorldCoordinate().position();
+                }
+                ofs << "    [" << n.x() << ", " << n.y() << ", " << n.z() << "]";
+                if ( vi + 1 < nv ) ofs << ",";
+                ofs << "\n";
+            }
+        }
+        ofs << "  ]\n";
+        ofs << "}\n";
+
+        std::cout << "Wrote point cloud to " << json_path
+                    << " (#points=" << nv << ")\n";
+
+        point->setName( volume.name() + "Object");
+        if ( mesh )
+        {
+            const auto min_coord = mesh->minExternalCoord();
+            const auto max_coord = mesh->maxExternalCoord();
+            point->setMinMaxObjectCoords( min_coord, max_coord );
+            point->setMinMaxExternalCoords( min_coord, max_coord );
+        }
+
+        // Register object and renderer to screen
+        //kvs::Light::SetModelTwoSide( true );
+        if ( screen.scene()->hasObject( volume.name() + "Object") )
+        {
+            // Update the objects.
+            screen.scene()->replaceObject( volume.name() + "Object", point );
+        }
+        else
+        {
+            // Register the objects with renderer.
+            auto* point_renderer = new kvs::glsl::ParticleBasedRenderer();
+            point_renderer->setTwoSideLightingEnabled( true );
+            point_renderer->setRepetitionLevel( repeats );
+            screen.registerObject( point, point_renderer );
+        }
+    };
+}
+
+
 extern "C"
 {
 
 Adaptor* InSituVis_new( const int method )
 {
     auto vis = new Adaptor();
+
+    // ▼▼ ここを追加：出力ベース/サブディレクトリを InSituVis.cpp から指定 ▼▼
+    // 例）環境や用途に合わせてここだけ書き換えれば良い
+    {
+        std::string base_dir =  "/data2/tomoya/SmokeRing/Output";
+        std::string sub_dir  = "Process";
+
+        vis->outputDirectory().setBaseDirectoryName( base_dir );
+        vis->outputDirectory().setSubDirectoryName( sub_dir );
+    }
+
     vis->setImageSize( Params::ImageSize.x(), Params::ImageSize.y() );
     vis->setViewpoint( Params::Viewpoint );
     vis->setAnalysisInterval( Params::AnalysisInterval );
@@ -207,6 +503,7 @@ Adaptor* InSituVis_new( const int method )
     case 1: vis->setPipeline( OrthoSlice( cmap ) ); break;
     case 2: vis->setPipeline( Isosurface( cmap ) ); break;
     case 3: vis->setPipeline( VolumeRendering( cmap ) ); break;
+    case 4: vis->setPipeline( StochasticRendering( cmap , Params::Repeats) ); break;
     default: break;
     }
 
@@ -247,3 +544,79 @@ void InSituVis_exec( Adaptor* self, double time_value, long time_index )
 }
 
 } // end of extern "C"
+
+
+inline void SavePointToJson(
+    const kvs::CellByCellMetropolisSampling* point,
+    const std::string& filename,
+    const bool to_world = false )
+{
+    if ( !point )
+    {
+        std::cerr << "[SavePointToJson] Error: null pointer.\n";
+        return;
+    }
+
+    const auto& coords  = point->coords();   // float配列 (x,y,z)*N
+    const auto& colors  = point->colors();   // uint8配列 (r,g,b)*N
+    const auto& normals = point->normals();  // float配列 (nx,ny,nz)*N
+    const size_t nv = coords.size() / 3;
+
+    std::ofstream ofs( filename );
+    if ( !ofs.is_open() )
+    {
+        std::cerr << "[SavePointToJson] Error: cannot open file " << filename << "\n";
+        return;
+    }
+
+    ofs << std::fixed << std::setprecision(6);
+    ofs << "{\n";
+
+    // === coords ===
+    ofs << "  \"coords\": [\n";
+    for ( size_t vi = 0; vi < nv; ++vi )
+    {
+        kvs::Vec3 p_obj( coords[3*vi+0], coords[3*vi+1], coords[3*vi+2] );
+        kvs::Vec3 p = p_obj;
+        if ( to_world )
+        {
+            p = kvs::ObjectCoordinate( p_obj, point ).toWorldCoordinate().position();
+        }
+        ofs << "    [" << p.x() << ", " << p.y() << ", " << p.z() << "]";
+        if ( vi + 1 < nv ) ofs << ",";
+        ofs << "\n";
+    }
+    ofs << "  ],\n";
+
+    // === colors ===
+    ofs << "  \"colors\": [\n";
+    for ( size_t vi = 0; vi < nv; ++vi )
+    {
+        ofs << "    [" 
+            << static_cast<int>( colors[3*vi+0] ) << ", "
+            << static_cast<int>( colors[3*vi+1] ) << ", "
+            << static_cast<int>( colors[3*vi+2] ) << "]";
+        if ( vi + 1 < nv ) ofs << ",";
+        ofs << "\n";
+    }
+    ofs << "  ],\n";
+
+    // === normals ===
+    ofs << "  \"normals\": [\n";
+    for ( size_t vi = 0; vi < nv; ++vi )
+    {
+        ofs << "    [" 
+            << normals[3*vi+0] << ", "
+            << normals[3*vi+1] << ", "
+            << normals[3*vi+2] << "]";
+        if ( vi + 1 < nv ) ofs << ",";
+        ofs << "\n";
+    }
+    ofs << "  ]\n";
+
+    ofs << "}\n";
+    ofs.close();
+
+    std::cout << "[SavePointToJson] Saved " << nv << " points to " << filename << std::endl;
+}
+

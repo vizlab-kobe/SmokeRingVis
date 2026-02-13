@@ -1,12 +1,12 @@
 #!/bin/bash
 
-NPROC_X=3
-NPROC_Y=2
-NPROC_Z=2
+NPROC_X=1
+NPROC_Y=1
+NPROC_Z=1
 
-NXPP=30
-NYPP=20
-NZPP=20
+NXPP=90
+NYPP=40
+NZPP=40
 
 # ==============================================================================
 # 'sed -i' command
