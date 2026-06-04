@@ -129,6 +129,7 @@ program main_m
   ! IN_SITU_VIS: Finalize
   ! {
   call insitu_vis % finalize()
+  call insitu_vis % delete()
   ! }
 
   call Job%finalize( Job%nloop, time, fluid )     !{main  }{job f}

@@ -8,7 +8,6 @@ module InSituVis_m
      private
      type( C_ptr ) :: ptr = C_NULL_ptr
    contains
-     final :: InSituVis_destroy ! Destructor
      procedure :: delete => InSituVis_delete
      procedure :: initialize => InSituVis_initialize
      procedure :: finalize => InSituVis_finalize
