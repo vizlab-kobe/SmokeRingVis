@@ -15,9 +15,7 @@ RESTART_DIR="restart"
 VIS2D_DIR="vis2d"
 
 if [ ! -d $DATA_DIR ]; then
-    mkdir $DATA_DIR
-    mkdir $DATA_DIR"/"$RESTART_DIR
-    mkdir $DATA_DIR"/"$VIS2D_DIR
+    mkdir -p "$DATA_DIR/$RESTART_DIR" "$DATA_DIR/$VIS2D_DIR"
 fi
 
 NPROC_X=`cat ./make.sh | grep '^NPROC_X=' | awk -F "=" '{print $2}' | awk '{print $1}'`
