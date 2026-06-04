@@ -14,9 +14,7 @@ DATA_DIR=`cat $PARAMS_FILE | grep 'Data_dir_name' | awk '{print substr($4, 2, le
 RESTART_DIR="restart"
 VIS2D_DIR="vis2d"
 
-if [ ! -d $DATA_DIR ]; then
-    mkdir -p "$DATA_DIR/$RESTART_DIR" "$DATA_DIR/$VIS2D_DIR"
-fi
+mkdir -p "$DATA_DIR/$RESTART_DIR" "$DATA_DIR/$VIS2D_DIR"
 
 NPROC_X=`cat ./make.sh | grep '^NPROC_X=' | awk -F "=" '{print $2}' | awk '{print $1}'`
 NPROC_Y=`cat ./make.sh | grep '^NPROC_Y=' | awk -F "=" '{print $2}' | awk '{print $1}'`
