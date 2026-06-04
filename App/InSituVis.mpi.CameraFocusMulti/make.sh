@@ -66,6 +66,13 @@ if [ ! -e "Makefile.kvs" ]; then
     kvsmake -G -use_mpi
 fi
 
+# Exclude VideoCreate.cpp from the InSituVis.mpi.CameraFocusMulti target.
+if grep -qF 'SOURCES += $(wildcard *.cpp)' Makefile.kvs; then
+    sed -i "" \
+        -e 's|^SOURCES += $(wildcard \*.cpp)|SOURCES += $(filter-out VideoCreate.cpp,$(wildcard *.cpp))|' \
+        Makefile.kvs
+fi
+
 if [ ${RECOMPILE} -eq 1 ]; then
     kvsmake rebuild
 else
