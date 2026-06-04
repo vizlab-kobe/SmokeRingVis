@@ -39,7 +39,7 @@ if [ ${NPROC_Y} -ne ${SRC_NPROC_Y} ]; then
 fi
 
 SRC_NPROC_Z=`cat ${CONSTANTS_FILE} | grep ":: NPROC_Z =" | awk -F "=" '{print $2}' | awk '{print $1}'`
-if [ ${NPROC_Y} -ne ${SRC_NPROC_Y} ]; then
+if [ ${NPROC_Z} -ne ${SRC_NPROC_Z} ]; then
     sedi -e "s/:: NPROC_Z =  *${SRC_NPROC_Z}/:: NPROC_Z = ${NPROC_Z}/g" ${CONSTANTS_FILE}
     RECOMPILE=1
 fi

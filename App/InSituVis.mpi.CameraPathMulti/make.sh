@@ -29,7 +29,7 @@ if [ ${NPROC_Y} -ne ${SRC_NPROC_Y} ]; then
 fi
 
 SRC_NPROC_Z=`cat ${CONSTANTS_FILE} | grep ":: NPROC_Z =" | awk -F "=" '{print $2}' | awk '{print $1}'`
-if [ ${NPROC_Y} -ne ${SRC_NPROC_Y} ]; then
+if [ ${NPROC_Z} -ne ${SRC_NPROC_Z} ]; then
     sed -i "" -e "s/:: NPROC_Z =  *${SRC_NPROC_Z}/:: NPROC_Z = ${NPROC_Z}/g" ${CONSTANTS_FILE}
     RECOMPILE=1
 fi
@@ -64,6 +64,13 @@ fi
 # ==============================================================================
 if [ ! -e "Makefile.kvs" ]; then
     kvsmake -G -use_mpi
+fi
+
+# Exclude VideoCreate.cpp from the InSituVis.mpi.CameraFocusMulti target.
+if grep -qF 'SOURCES += $(wildcard *.cpp)' Makefile.kvs; then
+    sed -i "" \
+        -e 's|^SOURCES += $(wildcard \*.cpp)|SOURCES += $(filter-out VideoCreate.cpp,$(wildcard *.cpp))|' \
+        Makefile.kvs
 fi
 
 if [ ${RECOMPILE} -eq 1 ]; then

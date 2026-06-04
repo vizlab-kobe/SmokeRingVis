@@ -73,7 +73,7 @@ const auto ViewDir = InSituVis::Viewpoint::Direction::Uni; // Uni or Omni
 
 
 kvs::Vec3 m_base_position = {0.0f,12.0f,0.0f};
-auto xyz_to_rtp = [&] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
+auto xyz_to_rtp = [] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
     const float x = xyz[0];
     const float y = xyz[1];
     const float z = xyz[2];
@@ -82,7 +82,7 @@ auto xyz_to_rtp = [&] ( const kvs::Vec3& xyz ) -> kvs::Vec3 {
     const float p = std::atan2( x, z );
     return kvs::Vec3( r, t, p );
 };
-auto calc_rotation = [&] ( const kvs::Vec3& xyz ) -> kvs::Quaternion {
+auto calc_rotation = [] ( const kvs::Vec3& xyz ) -> kvs::Quaternion {
     const auto rtp = xyz_to_rtp( xyz );
     const float phi = rtp[2];
     const auto axis = kvs::Vec3( { 0.0f, 1.0f, 0.0f } );
